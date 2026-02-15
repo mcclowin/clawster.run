@@ -6,11 +6,6 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   return NextResponse.json({
-    user: {
-      id: user.id,
-      telegram_id: user.telegram_id,
-      username: user.telegram_username,
-      has_billing: !!user.stripe_customer_id,
-    },
+    user: { id: user.id, email: user.email, has_billing: !!user.stripe_customer_id },
   });
 }

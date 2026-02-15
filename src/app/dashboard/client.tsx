@@ -16,7 +16,7 @@ interface Bot {
 }
 
 interface Props {
-  user: { id: string; username: string | null };
+  user: { id: string; email: string };
   initialBots: Bot[];
 }
 
@@ -109,7 +109,7 @@ export function DashboardClient({ user, initialBots }: Props) {
           <span>CLAWSTER</span>
         </div>
         <div style={{ fontWeight: 400, fontSize: 11, opacity: 0.8 }}>
-          {user.username ? `@${user.username}` : user.id}
+          {user.email}
         </div>
       </div>
 

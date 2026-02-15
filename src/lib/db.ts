@@ -1,10 +1,5 @@
 /**
  * Clawster Database — SQLite via better-sqlite3
- *
- * Tables:
- *   users       — auth + billing identity
- *   bots        — deployed bot instances
- *   usage       — hourly metering records for Stripe
  */
 
 import Database from "better-sqlite3";
@@ -27,12 +22,18 @@ export function getDb(): Database.Database {
 function migrate(db: Database.Database) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id                TEXT PRIMARY KEY,
-      telegram_id       TEXT UNIQUE NOT NULL,
-      telegram_username TEXT,
-      stripe_customer_id TEXT,
-      created_at        TEXT DEFAULT (datetime('now')),
-      updated_at        TEXT DEFAULT (datetime('now'))
+      id                  TEXT PRIMARY KEY,
+      email               TEXT UNIQUE NOT NULL,
+      stripe_customer_id  TEXT,
+      created_at          TEXT DEFAULT (datetime('now')),
+      updated_at          TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS auth_codes (
+      id          TEXT PRIMARY KEY,
+      email       TEXT NOT NULL,
+      code        TEXT NOT NULL,
+      expires_at  TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS bots (
@@ -42,7 +43,6 @@ function migrate(db: Database.Database) {
       phala_cvm_id    TEXT,
       phala_app_id    TEXT,
       status          TEXT DEFAULT 'pending',
-      -- pending | provisioning | running | stopped | error | terminated
       model           TEXT,
       instance_size   TEXT DEFAULT 'small',
       tee_pubkey      TEXT,
@@ -64,13 +64,13 @@ function migrate(db: Database.Database) {
       metered_at        TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+    CREATE INDEX IF NOT EXISTS idx_codes_email ON auth_codes(email);
     CREATE INDEX IF NOT EXISTS idx_bots_user ON bots(user_id);
     CREATE INDEX IF NOT EXISTS idx_bots_status ON bots(status);
     CREATE INDEX IF NOT EXISTS idx_usage_bot ON usage_records(bot_id);
   `);
 }
-
-// ── Helpers ──
 
 export function generateId(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 16);

@@ -1,11 +1,11 @@
 /**
- * Auth — Telegram Login Widget + JWT sessions
+ * Auth — Email magic code + JWT sessions
  *
  * Flow:
- * 1. User clicks Telegram Login Widget
- * 2. Telegram posts auth data to /api/auth/telegram
- * 3. We verify HMAC, upsert user, issue JWT
- * 4. JWT in httpOnly cookie — works seamlessly (same origin)
+ * 1. User enters email on /login
+ * 2. POST /api/auth/send-code → we email a 6-digit code
+ * 3. POST /api/auth/verify → check code, issue JWT
+ * 4. JWT in httpOnly cookie (same origin, no CORS issues)
  */
 
 import crypto from "crypto";
@@ -13,6 +13,7 @@ import * as jose from "jose";
 import { getDb, generateId } from "./db";
 
 const JWT_ALG = "HS256";
+const CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 function getSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -20,35 +21,35 @@ function getSecret(): Uint8Array {
   return new TextEncoder().encode(secret);
 }
 
-// ── Telegram verification ──
+// ── Magic code ──
 
-export interface TelegramAuthData {
-  id: number;
-  first_name?: string;
-  last_name?: string;
-  username?: string;
-  photo_url?: string;
-  auth_date: number;
-  hash: string;
+export function generateCode(): string {
+  return crypto.randomInt(100000, 999999).toString();
 }
 
-export function verifyTelegramAuth(data: TelegramAuthData): boolean {
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken) throw new Error("TELEGRAM_BOT_TOKEN not configured");
+export function storeCode(email: string, code: string): void {
+  const db = getDb();
 
-  const { hash, ...rest } = data;
-  const checkString = Object.entries(rest)
-    .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}=${v}`)
-    .join("\n");
+  // Delete any existing codes for this email
+  db.prepare("DELETE FROM auth_codes WHERE email = ?").run(email.toLowerCase());
 
-  const secretKey = crypto.createHash("sha256").update(botToken).digest();
-  const hmac = crypto.createHmac("sha256", secretKey).update(checkString).digest("hex");
+  // Store new code
+  db.prepare(
+    "INSERT INTO auth_codes (id, email, code, expires_at) VALUES (?, ?, ?, ?)"
+  ).run(generateId(), email.toLowerCase(), code, new Date(Date.now() + CODE_EXPIRY_MS).toISOString());
+}
 
-  if (hmac !== hash) return false;
-  if (Math.floor(Date.now() / 1000) - data.auth_date > 3600) return false;
+export function verifyCode(email: string, code: string): boolean {
+  const db = getDb();
 
+  const record = db
+    .prepare("SELECT * FROM auth_codes WHERE email = ? AND code = ? AND expires_at > datetime('now')")
+    .get(email.toLowerCase(), code) as { id: string } | undefined;
+
+  if (!record) return false;
+
+  // Delete used code
+  db.prepare("DELETE FROM auth_codes WHERE id = ?").run(record.id);
   return true;
 }
 
@@ -56,54 +57,49 @@ export function verifyTelegramAuth(data: TelegramAuthData): boolean {
 
 export interface User {
   id: string;
-  telegram_id: string;
-  telegram_username: string | null;
+  email: string;
   stripe_customer_id: string | null;
+  created_at: string;
 }
 
-export function findOrCreateUser(telegramId: string, username?: string): User {
+export function findOrCreateUser(email: string): User {
   const db = getDb();
+  const normalized = email.toLowerCase();
 
   const existing = db
-    .prepare("SELECT * FROM users WHERE telegram_id = ?")
-    .get(telegramId) as User | undefined;
+    .prepare("SELECT * FROM users WHERE email = ?")
+    .get(normalized) as User | undefined;
 
-  if (existing) {
-    if (username && username !== existing.telegram_username) {
-      db.prepare("UPDATE users SET telegram_username = ?, updated_at = datetime('now') WHERE id = ?")
-        .run(username, existing.id);
-      existing.telegram_username = username;
-    }
-    return existing;
-  }
+  if (existing) return existing;
 
   const id = generateId();
-  db.prepare("INSERT INTO users (id, telegram_id, telegram_username) VALUES (?, ?, ?)")
-    .run(id, telegramId, username || null);
+  const now = new Date().toISOString();
+  db.prepare("INSERT INTO users (id, email, created_at, updated_at) VALUES (?, ?, ?, ?)")
+    .run(id, normalized, now, now);
 
-  return { id, telegram_id: telegramId, telegram_username: username || null, stripe_customer_id: null };
+  return { id, email: normalized, stripe_customer_id: null, created_at: now };
 }
 
 // ── JWT ──
 
 export async function createToken(user: User): Promise<string> {
-  return new jose.SignJWT({ sub: user.id, tg: user.telegram_id })
+  return new jose.SignJWT({ sub: user.id, email: user.email })
     .setProtectedHeader({ alg: JWT_ALG })
     .setIssuedAt()
     .setExpirationTime("7d")
     .sign(getSecret());
 }
 
-export async function verifyToken(token: string): Promise<{ sub: string; tg: string } | null> {
+export async function verifyToken(token: string): Promise<{ sub: string; email: string } | null> {
   try {
     const { payload } = await jose.jwtVerify(token, getSecret());
-    return { sub: payload.sub as string, tg: payload.tg as string };
+    return { sub: payload.sub as string, email: payload.email as string };
   } catch {
     return null;
   }
 }
 
-// ── Server-side auth (for API routes + server components) ──
+// ── Server-side auth helper ──
 
 import { cookies } from "next/headers";
 

@@ -31,7 +31,7 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClient
-      user={{ id: user.id, username: user.telegram_username }}
+      user={{ id: user.id, email: user.email }}
       initialBots={bots}
     />
   );
