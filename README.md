@@ -7,61 +7,59 @@ Your keys stay yours. We mathematically cannot see them.
 ## Architecture
 
 ```
-Frontend (Netlify)          Backend (Railway)          TEE (Phala Cloud)
-clawster.run          →     api.clawster.run      →    Phala CVM
-                            Express + SQLite            Docker container
-                            Stripe billing              OpenClaw agent
-                            Telegram auth               age-encrypted secrets
+Next.js Monolith (Railway)
+clawster.run
+├── /                    Landing page
+├── /login               Telegram OAuth
+├── /dashboard           UEFI-style bot management
+└── /api/*               Backend endpoints
+    ├── /auth/*           Telegram login + JWT
+    ├── /bots/*           CRUD + Phala provisioning
+    ├── /billing/*        Stripe metered billing
+    └── /image/latest     Docker image version
 ```
 
 ## Stack
 
-- **Backend:** Express + TypeScript
-- **Database:** SQLite (better-sqlite3)
-- **Auth:** Telegram Login Widget + JWT
+- **Framework:** Next.js 15 (App Router, Server Components)
+- **Database:** SQLite (better-sqlite3, WAL mode)
+- **Auth:** Telegram Login Widget + JWT (httpOnly cookies)
 - **Billing:** Stripe metered subscriptions
 - **TEE Provider:** Phala Cloud (Intel TDX)
 - **Docker Image:** `ghcr.io/mcclowin/openclaw-tee:latest`
+- **Hosting:** Railway
 
 ## API Endpoints
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| POST | `/auth/telegram` | — | Telegram login callback |
-| GET | `/auth/me` | ✓ | Current user |
-| POST | `/auth/logout` | — | Clear session |
-| GET | `/bots` | ✓ | List bots |
-| POST | `/bots/spawn` | ✓ | Provision new bot |
-| GET | `/bots/:id/status` | ✓ | Bot status (polls Phala) |
-| POST | `/bots/:id/restart` | ✓ | Restart bot |
-| DELETE | `/bots/:id` | ✓ | Terminate bot |
-| POST | `/billing/checkout` | ✓ | Stripe checkout |
-| GET | `/billing/usage` | ✓ | Usage + cost |
-| GET | `/billing/portal` | ✓ | Stripe billing portal |
-| POST | `/billing/webhook` | — | Stripe events |
-| GET | `/image/latest` | — | Docker image tag |
-| GET | `/health` | — | Health check |
+| POST | `/api/auth/telegram` | — | Telegram login |
+| GET | `/api/auth/me` | ✓ | Current user |
+| POST | `/api/auth/logout` | — | Clear session |
+| GET | `/api/bots` | ✓ | List bots |
+| POST | `/api/bots/spawn` | ✓ | Provision new bot |
+| GET | `/api/bots/:id/status` | ✓ | Live status |
+| POST | `/api/bots/:id/restart` | ✓ | Restart bot |
+| DELETE | `/api/bots/:id` | ✓ | Terminate bot |
+| POST | `/api/billing/checkout` | ✓ | Stripe checkout |
+| GET | `/api/billing/usage` | ✓ | Usage + cost |
+| GET | `/api/billing/portal` | ✓ | Billing portal |
+| POST | `/api/billing/webhook` | — | Stripe events |
+| GET | `/api/image/latest` | — | Docker image tag |
+| GET | `/api/health` | — | Health check |
 
 ## Dev
 
 ```bash
 cp .env.local.example .env.local
 npm install
-npm run dev     # starts on :3100
+npm run dev     # http://localhost:3100
 ```
 
 ## Deploy (Railway)
 
-Push to GitHub → Railway auto-deploys from `railway.toml`.
-
-Set env vars in Railway dashboard.
-
-## Meter Worker
-
-Runs hourly via Railway cron:
-```bash
-npm run meter
-```
+Push to GitHub → connect repo in Railway → auto-deploys.
+Set env vars in Railway dashboard. Custom domain: clawster.run.
 
 ---
 
