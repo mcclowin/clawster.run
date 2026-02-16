@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { getDb } from "@/lib/db";
+import { dbGet, dbRun } from "@/lib/db";
 import * as phala from "@/lib/phala";
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const { id } = await params;
-  const db = getDb();
-  const bot = db
-    .prepare("SELECT * FROM bots WHERE id = ? AND user_id = ?")
-    .get(id, user.id) as Record<string, unknown> | undefined;
-
+  const bot = await dbGet<Record<string, unknown>>("SELECT * FROM bots WHERE id = ? AND user_id = ?", id, user.id);
   if (!bot) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Poll Phala for live status
   if (bot.phala_cvm_id && ["provisioning", "running"].includes(bot.status as string)) {
     try {
       const cvm = await phala.getStatus(bot.phala_cvm_id as string);
@@ -27,16 +19,14 @@ export async function GET(
       else if (["stopped", "error"].includes(cvm.status)) newStatus = "error";
 
       if (newStatus !== bot.status) {
-        db.prepare("UPDATE bots SET status = ?, updated_at = datetime('now') WHERE id = ?")
-          .run(newStatus, id);
+        await dbRun("UPDATE bots SET status = ?, updated_at = datetime('now') WHERE id = ?", newStatus, id);
         bot.status = newStatus;
       }
       if (cvm.endpoint) {
-        db.prepare("UPDATE bots SET cvm_endpoint = ?, updated_at = datetime('now') WHERE id = ?")
-          .run(cvm.endpoint, id);
+        await dbRun("UPDATE bots SET cvm_endpoint = ?, updated_at = datetime('now') WHERE id = ?", cvm.endpoint, id);
         bot.cvm_endpoint = cvm.endpoint;
       }
-    } catch { /* use cached */ }
+    } catch { /* cached */ }
   }
 
   return NextResponse.json({

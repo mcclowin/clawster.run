@@ -1,26 +1,49 @@
 /**
- * Clawster Database — SQLite via better-sqlite3
+ * Clawster Database — SQLite via sql.js (pure JS, no native deps)
  */
 
-import Database from "better-sqlite3";
+import initSqlJs, { Database as SqlJsDatabase } from "sql.js";
+import fs from "fs";
 import path from "path";
 
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "clawster.db");
 
-let _db: Database.Database | null = null;
+let _db: SqlJsDatabase | null = null;
+let _sqlReady: Promise<typeof import("sql.js")> | null = null;
 
-export function getDb(): Database.Database {
-  if (!_db) {
-    _db = new Database(DB_PATH);
-    _db.pragma("journal_mode = WAL");
-    _db.pragma("foreign_keys = ON");
-    migrate(_db);
+function getSqlJs() {
+  if (!_sqlReady) {
+    _sqlReady = initSqlJs();
   }
+  return _sqlReady;
+}
+
+export async function getDb(): Promise<SqlJsDatabase> {
+  if (_db) return _db;
+
+  const SQL = await getSqlJs();
+
+  // Load existing DB or create new
+  if (fs.existsSync(DB_PATH)) {
+    const buffer = fs.readFileSync(DB_PATH);
+    _db = new SQL.Database(buffer);
+  } else {
+    _db = new SQL.Database();
+  }
+
+  migrate(_db);
   return _db;
 }
 
-function migrate(db: Database.Database) {
-  db.exec(`
+/** Save DB to disk */
+export function saveDb(): void {
+  if (!_db) return;
+  const data = _db.export();
+  fs.writeFileSync(DB_PATH, Buffer.from(data));
+}
+
+function migrate(db: SqlJsDatabase) {
+  db.run(`
     CREATE TABLE IF NOT EXISTS users (
       id                  TEXT PRIMARY KEY,
       email               TEXT UNIQUE NOT NULL,
@@ -63,15 +86,50 @@ function migrate(db: Database.Database) {
       stripe_usage_id   TEXT,
       metered_at        TEXT DEFAULT (datetime('now'))
     );
-
-    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-    CREATE INDEX IF NOT EXISTS idx_codes_email ON auth_codes(email);
-    CREATE INDEX IF NOT EXISTS idx_bots_user ON bots(user_id);
-    CREATE INDEX IF NOT EXISTS idx_bots_status ON bots(status);
-    CREATE INDEX IF NOT EXISTS idx_usage_bot ON usage_records(bot_id);
   `);
+  saveDb();
 }
 
 export function generateId(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+}
+
+// ── Query helpers (sql.js uses different API than better-sqlite3) ──
+
+export async function dbRun(sql: string, ...params: unknown[]): Promise<void> {
+  const db = await getDb();
+  db.run(sql, params as (string | number | null)[]);
+  saveDb();
+}
+
+export async function dbGet<T = Record<string, unknown>>(sql: string, ...params: unknown[]): Promise<T | undefined> {
+  const db = await getDb();
+  const stmt = db.prepare(sql);
+  stmt.bind(params as (string | number | null)[]);
+  if (stmt.step()) {
+    const cols = stmt.getColumnNames();
+    const vals = stmt.get();
+    stmt.free();
+    const row: Record<string, unknown> = {};
+    cols.forEach((col, i) => row[col] = vals[i]);
+    return row as T;
+  }
+  stmt.free();
+  return undefined;
+}
+
+export async function dbAll<T = Record<string, unknown>>(sql: string, ...params: unknown[]): Promise<T[]> {
+  const db = await getDb();
+  const stmt = db.prepare(sql);
+  stmt.bind(params as (string | number | null)[]);
+  const results: T[] = [];
+  while (stmt.step()) {
+    const cols = stmt.getColumnNames();
+    const vals = stmt.get();
+    const row: Record<string, unknown> = {};
+    cols.forEach((col, i) => row[col] = vals[i]);
+    results.push(row as T);
+  }
+  stmt.free();
+  return results;
 }

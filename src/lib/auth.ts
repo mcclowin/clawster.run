@@ -1,19 +1,13 @@
 /**
  * Auth — Email magic code + JWT sessions
- *
- * Flow:
- * 1. User enters email on /login
- * 2. POST /api/auth/send-code → we email a 6-digit code
- * 3. POST /api/auth/verify → check code, issue JWT
- * 4. JWT in httpOnly cookie (same origin, no CORS issues)
  */
 
 import crypto from "crypto";
 import * as jose from "jose";
-import { getDb, generateId } from "./db";
+import { dbRun, dbGet, generateId } from "./db";
 
 const JWT_ALG = "HS256";
-const CODE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+const CODE_EXPIRY_MS = 10 * 60 * 1000;
 
 function getSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -27,33 +21,25 @@ export function generateCode(): string {
   return crypto.randomInt(100000, 999999).toString();
 }
 
-export function storeCode(email: string, code: string): void {
-  const db = getDb();
-
-  // Delete any existing codes for this email
-  db.prepare("DELETE FROM auth_codes WHERE email = ?").run(email.toLowerCase());
-
-  // Store new code
-  db.prepare(
-    "INSERT INTO auth_codes (id, email, code, expires_at) VALUES (?, ?, ?, ?)"
-  ).run(generateId(), email.toLowerCase(), code, new Date(Date.now() + CODE_EXPIRY_MS).toISOString());
+export async function storeCode(email: string, code: string): Promise<void> {
+  await dbRun("DELETE FROM auth_codes WHERE email = ?", email.toLowerCase());
+  await dbRun(
+    "INSERT INTO auth_codes (id, email, code, expires_at) VALUES (?, ?, ?, ?)",
+    generateId(), email.toLowerCase(), code, new Date(Date.now() + CODE_EXPIRY_MS).toISOString()
+  );
 }
 
-export function verifyCode(email: string, code: string): boolean {
-  const db = getDb();
-
-  const record = db
-    .prepare("SELECT * FROM auth_codes WHERE email = ? AND code = ? AND expires_at > datetime('now')")
-    .get(email.toLowerCase(), code) as { id: string } | undefined;
-
+export async function verifyCode(email: string, code: string): Promise<boolean> {
+  const record = await dbGet<{ id: string }>(
+    "SELECT * FROM auth_codes WHERE email = ? AND code = ? AND expires_at > datetime('now')",
+    email.toLowerCase(), code
+  );
   if (!record) return false;
-
-  // Delete used code
-  db.prepare("DELETE FROM auth_codes WHERE id = ?").run(record.id);
+  await dbRun("DELETE FROM auth_codes WHERE id = ?", record.id);
   return true;
 }
 
-// ── User CRUD ──
+// ── User ──
 
 export interface User {
   id: string;
@@ -62,21 +48,14 @@ export interface User {
   created_at: string;
 }
 
-export function findOrCreateUser(email: string): User {
-  const db = getDb();
+export async function findOrCreateUser(email: string): Promise<User> {
   const normalized = email.toLowerCase();
-
-  const existing = db
-    .prepare("SELECT * FROM users WHERE email = ?")
-    .get(normalized) as User | undefined;
-
+  const existing = await dbGet<User>("SELECT * FROM users WHERE email = ?", normalized);
   if (existing) return existing;
 
   const id = generateId();
   const now = new Date().toISOString();
-  db.prepare("INSERT INTO users (id, email, created_at, updated_at) VALUES (?, ?, ?, ?)")
-    .run(id, normalized, now, now);
-
+  await dbRun("INSERT INTO users (id, email, created_at, updated_at) VALUES (?, ?, ?, ?)", id, normalized, now, now);
   return { id, email: normalized, stripe_customer_id: null, created_at: now };
 }
 
@@ -99,7 +78,7 @@ export async function verifyToken(token: string): Promise<{ sub: string; email: 
   }
 }
 
-// ── Server-side auth helper ──
+// ── Server-side auth ──
 
 import { cookies } from "next/headers";
 
@@ -111,6 +90,5 @@ export async function getAuthUser(): Promise<User | null> {
   const payload = await verifyToken(token);
   if (!payload) return null;
 
-  const db = getDb();
-  return db.prepare("SELECT * FROM users WHERE id = ?").get(payload.sub) as User | undefined || null;
+  return dbGet<User>("SELECT * FROM users WHERE id = ?", payload.sub) || null;
 }
