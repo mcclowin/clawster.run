@@ -90,5 +90,6 @@ export async function getAuthUser(): Promise<User | null> {
   const payload = await verifyToken(token);
   if (!payload) return null;
 
-  return dbGet<User>("SELECT * FROM users WHERE id = ?", payload.sub) || null;
+  const user = await dbGet<User>("SELECT * FROM users WHERE id = ?", payload.sub);
+  return user || null;
 }

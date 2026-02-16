@@ -94,18 +94,22 @@ export function generateId(): string {
   return crypto.randomUUID().replace(/-/g, "").slice(0, 16);
 }
 
-// ── Query helpers (sql.js uses different API than better-sqlite3) ──
+// ── Query helpers ──
+
+function sanitizeParams(params: unknown[]): (string | number | null)[] {
+  return params.map(p => p === undefined ? null : p as string | number | null);
+}
 
 export async function dbRun(sql: string, ...params: unknown[]): Promise<void> {
   const db = await getDb();
-  db.run(sql, params as (string | number | null)[]);
+  db.run(sql, sanitizeParams(params));
   saveDb();
 }
 
 export async function dbGet<T = Record<string, unknown>>(sql: string, ...params: unknown[]): Promise<T | undefined> {
   const db = await getDb();
   const stmt = db.prepare(sql);
-  stmt.bind(params as (string | number | null)[]);
+  if (params.length > 0) stmt.bind(sanitizeParams(params));
   if (stmt.step()) {
     const cols = stmt.getColumnNames();
     const vals = stmt.get();
@@ -121,7 +125,7 @@ export async function dbGet<T = Record<string, unknown>>(sql: string, ...params:
 export async function dbAll<T = Record<string, unknown>>(sql: string, ...params: unknown[]): Promise<T[]> {
   const db = await getDb();
   const stmt = db.prepare(sql);
-  stmt.bind(params as (string | number | null)[]);
+  if (params.length > 0) stmt.bind(sanitizeParams(params));
   const results: T[] = [];
   while (stmt.step()) {
     const cols = stmt.getColumnNames();
