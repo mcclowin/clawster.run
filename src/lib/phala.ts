@@ -11,7 +11,7 @@ function headers(): HeadersInit {
   const key = process.env.PHALA_API_KEY;
   if (!key) throw new Error("PHALA_API_KEY not configured");
   return {
-    Authorization: `Bearer ${key}`,
+    "X-API-Key": key,
     "Content-Type": "application/json",
   };
 }
