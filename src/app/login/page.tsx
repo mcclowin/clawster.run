@@ -37,7 +37,9 @@ export default function LoginPage() {
       body: JSON.stringify({ email, code }),
     });
     if (res.ok) {
-      router.push("/dashboard");
+      // Full page navigation to ensure cookie is sent with the request
+      window.location.href = "/dashboard";
+      return;
     } else {
       const data = await res.json();
       setError(data.error);
