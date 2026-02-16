@@ -52,13 +52,6 @@ function migrate(db: SqlJsDatabase) {
       updated_at          TEXT DEFAULT (datetime('now'))
     );
 
-    CREATE TABLE IF NOT EXISTS auth_codes (
-      id          TEXT PRIMARY KEY,
-      email       TEXT NOT NULL,
-      code        TEXT NOT NULL,
-      expires_at  TEXT NOT NULL
-    );
-
     CREATE TABLE IF NOT EXISTS bots (
       id              TEXT PRIMARY KEY,
       user_id         TEXT NOT NULL REFERENCES users(id),

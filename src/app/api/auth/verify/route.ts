@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyCode, findOrCreateUser, createToken } from "@/lib/auth";
+import { verifyOtp } from "@/lib/email";
+import { findOrCreateUser, createToken } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, code } = await req.json();
+    const { methodId, code } = await req.json();
 
-    if (!email || !code) {
-      return NextResponse.json({ error: "Email and code required" }, { status: 400 });
+    if (!methodId || !code) {
+      return NextResponse.json({ error: "methodId and code required" }, { status: 400 });
     }
 
-    const valid = await verifyCode(email, code);
-    if (!valid) {
-      return NextResponse.json({ error: "Invalid or expired code" }, { status: 401 });
-    }
+    // Stytch verifies the code
+    const { email } = await verifyOtp(methodId, code);
 
+    // Create/find our user
     const user = await findOrCreateUser(email);
     const token = await createToken(user);
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     res.cookies.set("clawster_session", token, {
       httpOnly: true,
-      secure: false, // dev mode — no HTTPS
+      secure: false,
       sameSite: "lax",
       maxAge: 7 * 24 * 60 * 60,
       path: "/",
@@ -32,6 +32,6 @@ export async function POST(req: NextRequest) {
     return res;
   } catch (err) {
     console.error("[verify]", err);
-    return NextResponse.json({ error: "Verification failed" }, { status: 500 });
+    return NextResponse.json({ error: "Invalid or expired code" }, { status: 401 });
   }
 }

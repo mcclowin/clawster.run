@@ -1,42 +1,17 @@
 /**
- * Auth — Email magic code + JWT sessions
+ * Auth — User management + JWT sessions
+ * OTP handled by Stytch (see email.ts)
  */
 
-import crypto from "crypto";
 import * as jose from "jose";
 import { dbRun, dbGet, generateId } from "./db";
 
 const JWT_ALG = "HS256";
-const CODE_EXPIRY_MS = 10 * 60 * 1000;
 
 function getSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
   if (!secret) throw new Error("JWT_SECRET not configured");
   return new TextEncoder().encode(secret);
-}
-
-// ── Magic code ──
-
-export function generateCode(): string {
-  return crypto.randomInt(100000, 999999).toString();
-}
-
-export async function storeCode(email: string, code: string): Promise<void> {
-  await dbRun("DELETE FROM auth_codes WHERE email = ?", email.toLowerCase());
-  await dbRun(
-    "INSERT INTO auth_codes (id, email, code, expires_at) VALUES (?, ?, ?, ?)",
-    generateId(), email.toLowerCase(), code, new Date(Date.now() + CODE_EXPIRY_MS).toISOString()
-  );
-}
-
-export async function verifyCode(email: string, code: string): Promise<boolean> {
-  const record = await dbGet<{ id: string }>(
-    "SELECT * FROM auth_codes WHERE email = ? AND code = ? AND expires_at > datetime('now')",
-    email.toLowerCase(), code
-  );
-  if (!record) return false;
-  await dbRun("DELETE FROM auth_codes WHERE id = ?", record.id);
-  return true;
 }
 
 // ── User ──
