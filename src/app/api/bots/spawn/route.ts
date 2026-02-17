@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    const cvm = await phala.spawn(name, instanceSize);
+    const { cvm } = await phala.spawn(name, instanceSize as phala.SizeKey, []);
     await dbRun("UPDATE bots SET phala_cvm_id = ?, phala_app_id = ?, updated_at = datetime('now') WHERE id = ?", cvm.id, cvm.app_id, botId);
     return NextResponse.json({ bot_id: botId, name, status: "provisioning", phala_cvm_id: cvm.id });
   } catch (err) {

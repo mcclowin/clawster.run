@@ -22,9 +22,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         await dbRun("UPDATE bots SET status = ?, updated_at = datetime('now') WHERE id = ?", newStatus, id);
         bot.status = newStatus;
       }
-      if (cvm.endpoint) {
-        await dbRun("UPDATE bots SET cvm_endpoint = ?, updated_at = datetime('now') WHERE id = ?", cvm.endpoint, id);
-        bot.cvm_endpoint = cvm.endpoint;
+      if (cvm.endpoints && cvm.endpoints.length > 0) {
+        const ep = cvm.endpoints[0].app || cvm.endpoints[0].instance;
+        await dbRun("UPDATE bots SET cvm_endpoint = ?, updated_at = datetime('now') WHERE id = ?", ep, id);
+        bot.cvm_endpoint = ep;
       }
     } catch { /* cached */ }
   }

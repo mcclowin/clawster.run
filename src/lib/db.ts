@@ -2,14 +2,14 @@
  * Clawster Database — SQLite via sql.js (pure JS, no native deps)
  */
 
-import initSqlJs, { Database as SqlJsDatabase } from "sql.js";
+import initSqlJs, { type Database as SqlJsDatabase, type SqlJsStatic } from "sql.js";
 import fs from "fs";
 import path from "path";
 
 const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), "clawster.db");
 
 let _db: SqlJsDatabase | null = null;
-let _sqlReady: Promise<typeof import("sql.js")> | null = null;
+let _sqlReady: Promise<SqlJsStatic> | null = null;
 
 function getSqlJs() {
   if (!_sqlReady) {
@@ -23,7 +23,6 @@ export async function getDb(): Promise<SqlJsDatabase> {
 
   const SQL = await getSqlJs();
 
-  // Load existing DB or create new
   if (fs.existsSync(DB_PATH)) {
     const buffer = fs.readFileSync(DB_PATH);
     _db = new SQL.Database(buffer);
