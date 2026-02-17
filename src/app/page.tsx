@@ -1,69 +1,121 @@
-/**
- * Landing page — clawster.run
- */
+import Link from "next/link";
+
 export default function Home() {
   return (
-    <div style={{
-      maxWidth: 680, margin: "0 auto", padding: "80px 28px",
-      fontFamily: "'JetBrains Mono', monospace",
-    }}>
-      <div style={{ marginBottom: 48 }}>
-        <h1 style={{ fontSize: 24, color: "#e0e4f0", fontWeight: 700, marginBottom: 8 }}>
-          🦞 Clawster
-        </h1>
-        <p style={{ fontSize: 13, color: "#5a6080" }}>
-          Deploy autonomous AI agents into secure enclaves.
-        </p>
-      </div>
-
-      <div style={{
-        background: "#111520", border: "1px solid #1c2030", borderRadius: 6,
-        padding: 32, marginBottom: 32,
-      }}>
-        <h2 style={{ fontSize: 15, color: "#b8bfe0", marginBottom: 16 }}>What is this?</h2>
-        <p style={{ fontSize: 13, lineHeight: 1.9, color: "#8890b0", marginBottom: 16 }}>
-          Clawster spawns <a href="https://github.com/openclaw/openclaw">OpenClaw</a> agents into
-          Trusted Execution Environments. Your API keys are encrypted to the TEE hardware —
-          we mathematically cannot see them.
-        </p>
-        <p style={{ fontSize: 13, lineHeight: 1.9, color: "#8890b0" }}>
-          One click. Your bot runs 24/7 on secure hardware.
-          You pay per hour. Cancel anytime.
-        </p>
-      </div>
-
-      <div style={{
-        background: "#111520", border: "1px solid #1c2030", borderRadius: 6,
-        padding: 32, marginBottom: 32,
-      }}>
-        <h2 style={{ fontSize: 15, color: "#b8bfe0", marginBottom: 16 }}>Pricing</h2>
-        <div style={{ fontSize: 13, lineHeight: 2.2, color: "#8890b0" }}>
-          <div><span style={{ color: "#b8bfe0" }}>Small</span> — 1 vCPU, 2 GB — $0.12/hr (~$86/mo)</div>
-          <div><span style={{ color: "#b8bfe0" }}>Medium</span> — 2 vCPU, 4 GB — $0.24/hr (~$173/mo)</div>
-          <div style={{ color: "#3a4060", marginTop: 8 }}>No markup on AI API calls. Your keys, your bill.</div>
+    <div className="landing">
+      {/* Nav */}
+      <nav className="landing-nav">
+        <div className="landing-nav-logo">
+          <span className="lobster">🦞</span> CLAWSTER
         </div>
-      </div>
+        <div className="landing-nav-links">
+          <a href="https://github.com/openclaw/openclaw" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://docs.openclaw.ai" target="_blank" rel="noopener">Docs</a>
+          <Link href="/login" className="landing-btn-sm">Log In</Link>
+        </div>
+      </nav>
 
-      <a
-        href="/dashboard"
-        style={{
-          display: "inline-block",
-          background: "linear-gradient(135deg, #dc5828, #f97316)",
-          color: "#fff",
-          padding: "12px 32px",
-          borderRadius: 4,
-          fontSize: 13,
-          fontWeight: 600,
-          letterSpacing: 1,
-          fontFamily: "'JetBrains Mono', monospace",
-        }}
-      >
-        🦞 LAUNCH DASHBOARD
-      </a>
+      {/* Hero */}
+      <section className="landing-hero">
+        <div className="landing-hero-badge">TRUSTED EXECUTION ENVIRONMENT</div>
+        <h1>Your AI agent.<br />Running 24/7.<br /><span className="accent">Tamper-proof.</span></h1>
+        <p className="landing-hero-sub">
+          Deploy an <a href="https://github.com/openclaw/openclaw">OpenClaw</a> agent into a hardware-secured
+          enclave in under 60 seconds. Your API keys are sealed by the CPU&nbsp;—
+          not even we can read them.
+        </p>
+        <div className="landing-hero-actions">
+          <Link href="/login" className="landing-btn-primary">🦞 SPAWN YOUR BOT</Link>
+          <a href="#how" className="landing-btn-ghost">How it works ↓</a>
+        </div>
+      </section>
 
-      <div style={{ marginTop: 64, fontSize: 10, color: "#1c2030" }}>
-        brain&bots technologies © 2026
-      </div>
+      {/* How it works */}
+      <section id="how" className="landing-section">
+        <h2>Three steps. One minute.</h2>
+        <div className="landing-steps">
+          <div className="landing-step">
+            <div className="landing-step-num">01</div>
+            <div className="landing-step-title">Sign in</div>
+            <div className="landing-step-desc">Email + 6-digit code. No password, no friction.</div>
+          </div>
+          <div className="landing-step">
+            <div className="landing-step-num">02</div>
+            <div className="landing-step-title">Configure</div>
+            <div className="landing-step-desc">Pick a name, model, and size. Paste your Telegram bot token + AI API key. Everything is encrypted to TEE hardware before leaving your browser.</div>
+          </div>
+          <div className="landing-step">
+            <div className="landing-step-num">03</div>
+            <div className="landing-step-title">Spawn</div>
+            <div className="landing-step-desc">Your bot boots inside a secure enclave and connects to Telegram. Talk to it. It remembers, learns, and runs skills.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* What you get */}
+      <section className="landing-section">
+        <h2>What&apos;s inside the enclave</h2>
+        <div className="landing-grid">
+          <div className="landing-card">
+            <div className="landing-card-icon">🔒</div>
+            <div className="landing-card-title">Hardware isolation</div>
+            <div className="landing-card-desc">Intel TDX encrypts memory at the CPU level. No one — not the host, not us — can inspect your agent&apos;s runtime.</div>
+          </div>
+          <div className="landing-card">
+            <div className="landing-card-icon">🧠</div>
+            <div className="landing-card-title">Persistent memory</div>
+            <div className="landing-card-desc">Your bot wakes up knowing who it is. Long-term memory, daily notes, personality — all stored inside the enclave.</div>
+          </div>
+          <div className="landing-card">
+            <div className="landing-card-icon">⚡</div>
+            <div className="landing-card-title">Always on</div>
+            <div className="landing-card-desc">No laptop to keep open. No VPS to babysit. Your bot runs 24/7 on dedicated hardware with automatic restarts.</div>
+          </div>
+          <div className="landing-card">
+            <div className="landing-card-icon">🔧</div>
+            <div className="landing-card-title">Full OpenClaw</div>
+            <div className="landing-card-desc">Not a stripped-down version. The real thing — skills, tools, web browsing, cron jobs, multi-channel messaging.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="landing-section">
+        <h2>Simple pricing</h2>
+        <p className="landing-section-sub">Pay per hour. No contracts. Cancel anytime.</p>
+        <div className="landing-pricing">
+          <div className="landing-price-card">
+            <div className="landing-price-tier">Small</div>
+            <div className="landing-price-specs">1 vCPU · 2 GB RAM</div>
+            <div className="landing-price-amount">$0.12<span>/hr</span></div>
+            <div className="landing-price-monthly">~$86/mo</div>
+          </div>
+          <div className="landing-price-card featured">
+            <div className="landing-price-tier">Medium</div>
+            <div className="landing-price-specs">2 vCPU · 4 GB RAM</div>
+            <div className="landing-price-amount">$0.24<span>/hr</span></div>
+            <div className="landing-price-monthly">~$173/mo</div>
+          </div>
+        </div>
+        <p className="landing-pricing-note">
+          You bring your own AI API key. No markup on model usage — your key, your bill.
+        </p>
+      </section>
+
+      {/* CTA */}
+      <section className="landing-section landing-cta">
+        <h2>Ready to deploy?</h2>
+        <p>Your bot is one click away from running in a secure enclave.</p>
+        <Link href="/login" className="landing-btn-primary">🦞 GET STARTED</Link>
+      </section>
+
+      {/* Footer */}
+      <footer className="landing-footer">
+        <div>clawster.run · <a href="https://brainandbot.gg">brain&bot</a> © 2026</div>
+        <div>
+          Powered by <a href="https://github.com/openclaw/openclaw">OpenClaw</a> + <a href="https://phala.network">Phala Network</a>
+        </div>
+      </footer>
     </div>
   );
 }

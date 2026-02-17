@@ -285,7 +285,7 @@ export function DashboardClient({ user, initialBots }: Props) {
       {/* Bottom */}
       <div style={s.bottomBar}>
         <div>clawster.run · v0.1</div>
-        <div>brain&bots © 2026</div>
+        <div>brain&bot © 2026</div>
       </div>
     </div>
   );

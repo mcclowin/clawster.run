@@ -125,7 +125,7 @@ export default function LoginPage() {
         We&apos;ll send a 6-digit code to your email. No password needed.
       </p>
 
-      <div style={{ marginTop: 48, fontSize: 10, color: "#1c2030" }}>brain&bots technologies © 2026</div>
+      <a href="/" style={{ display: "block", marginTop: 48, fontSize: 10, color: "#1c2030" }}>brain&bot © 2026</a>
     </div>
   );
 }
