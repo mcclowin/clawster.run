@@ -1,8 +1,11 @@
 /**
- * Phala Cloud API Client
+ * Phala Cloud API Client — Clawster.run
  *
- * Provisions and manages CVMs (Confidential VMs) on Phala Cloud.
- * Uses our master API key — users never touch Phala directly.
+ * Two-phase deploy: provision (stores compose) → commit (starts CVM).
+ * Env vars encrypted client-side to TEE pubkey — we never see plaintext secrets.
+ *
+ * API auth: X-API-Key header (NOT Authorization: Bearer).
+ * Proven working format as of 2026-02-16.
  */
 
 const PHALA_API = "https://cloud-api.phala.network/api/v1";
@@ -18,84 +21,182 @@ function headers(): HeadersInit {
 
 // ── Instance sizing ──
 
-const SIZES: Record<string, { vcpu: number; memory: number; disk: number; costPerHour: number }> = {
-  small:  { vcpu: 1, memory: 2048, disk: 20, costPerHour: 0.058 },
-  medium: { vcpu: 2, memory: 4096, disk: 40, costPerHour: 0.116 },
-};
+export const SIZES = {
+  small:  { vcpu: 1, memory: 2048, disk: 20, instanceType: "tdx.small",  costPerHour: 0.058, retailPerHour: 0.12 },
+  medium: { vcpu: 2, memory: 4096, disk: 40, instanceType: "tdx.medium", costPerHour: 0.116, retailPerHour: 0.24 },
+} as const;
+
+export type SizeKey = keyof typeof SIZES;
 
 export function getSize(size: string) {
-  return SIZES[size] || SIZES.small;
+  return SIZES[size as SizeKey] || SIZES.small;
 }
 
 // ── Compose file generation ──
 
-function makeCompose(botName: string, size: string): string {
+function makeCompose(envVars: { key: string; value: string }[]): string {
   const image = process.env.OPENCLAW_IMAGE || "ghcr.io/mcclowin/openclaw-tee:latest";
+  const envLines = envVars.map(e => `      - ${e.key}=\${${e.key}}`).join("\n");
 
-  // Note: secrets (TELEGRAM_BOT_TOKEN, API keys) are NOT in the compose.
-  // They're encrypted client-side and sent directly to the TEE after boot.
-  // The entrypoint waits for a secrets payload on :3001/secrets before starting.
-  return `version: "3"
-services:
+  return `services:
   openclaw:
     image: ${image}
     environment:
-      - BOT_NAME=${botName}
-      - CLAWSTER_MODE=waiting
+${envLines}
     ports:
       - "3000:3000"
-      - "3001:3001"
     restart: unless-stopped`;
 }
 
-// ── API Methods ──
+// ── Types ──
+
+export interface ProvisionResult {
+  app_id: string;
+  app_env_encrypt_pubkey: string;
+  compose_hash: string;
+}
 
 export interface CvmInfo {
   id: string;
+  name: string;
   app_id: string;
+  vm_uuid: string;
   status: string;
-  endpoint?: string;
+  resource: {
+    instance_type: string;
+    vcpu: number;
+    memory_in_gb: number;
+    disk_in_gb: number;
+    compute_billing_price: string;
+    billing_period: string;
+  };
+  endpoints: { app: string; instance: string }[];
+  created_at: string;
+  compose_file: {
+    docker_compose_file: string | null;
+  } | null;
 }
 
-/** Provision a new CVM */
-export async function spawn(botName: string, size: string): Promise<CvmInfo> {
-  const s = getSize(size);
-  const compose = makeCompose(botName, size);
+export interface ContainerInfo {
+  id: string;
+  names: string[];
+  image: string;
+  state: string;
+  status: string;
+}
 
-  const res = await fetch(`${PHALA_API}/cvms`, {
+// ── Phase 1: Provision (stores compose, returns TEE pubkey) ──
+
+export async function provision(
+  name: string,
+  size: SizeKey,
+  envVars: { key: string; value: string }[]
+): Promise<ProvisionResult> {
+  const s = getSize(size);
+  const compose = makeCompose(envVars);
+
+  const res = await fetch(`${PHALA_API}/cvms/provision`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({
-      name: `clawster-${botName}`,
-      compose: { docker_compose_file: compose },
+      name,
       vcpu: s.vcpu,
       memory: s.memory,
       disk_size: s.disk,
-      instance_type: size === "medium" ? "tdx.medium" : "tdx.small",
+      instance_type: s.instanceType,
+      compose_file: {
+        docker_compose_file: compose,
+        name: "",
+        public_logs: true,
+        public_sysinfo: true,
+        gateway_enabled: true,
+      },
     }),
   });
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Phala spawn failed: ${res.status} ${err}`);
+    throw new Error(`Phala provision failed (${res.status}): ${err}`);
+  }
+
+  const data = await res.json();
+  return {
+    app_id: data.app_id,
+    app_env_encrypt_pubkey: data.app_env_encrypt_pubkey,
+    compose_hash: data.compose_hash,
+  };
+}
+
+// ── Phase 2: Commit (starts CVM, optionally with encrypted env) ──
+
+export async function commit(
+  appId: string,
+  composeHash: string,
+  encryptedEnv?: string
+): Promise<CvmInfo> {
+  const body: Record<string, unknown> = {
+    app_id: appId,
+    compose_hash: composeHash,
+  };
+
+  if (encryptedEnv) {
+    body.encrypted_env = encryptedEnv;
+  }
+
+  const res = await fetch(`${PHALA_API}/cvms`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Phala commit failed (${res.status}): ${err}`);
   }
 
   return res.json();
 }
 
+// ── Full deploy (provision + commit) ──
+
+export async function spawn(
+  name: string,
+  size: SizeKey,
+  envVars: { key: string; value: string }[],
+  encryptedEnv?: string
+): Promise<{ cvm: CvmInfo; teePubkey: string }> {
+  // Phase 1: provision — stores compose, gets TEE pubkey
+  const prov = await provision(name, size, envVars);
+
+  // Phase 2: commit — starts the CVM
+  const cvm = await commit(prov.app_id, prov.compose_hash, encryptedEnv);
+
+  return { cvm, teePubkey: prov.app_env_encrypt_pubkey };
+}
+
+// ── Management ──
+
 /** Get CVM status */
 export async function getStatus(cvmId: string): Promise<CvmInfo> {
   const res = await fetch(`${PHALA_API}/cvms/${cvmId}`, { headers: headers() });
-  if (!res.ok) throw new Error(`Phala status failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Phala status failed (${res.status})`);
   return res.json();
 }
 
-/** List all our CVMs */
+/** List containers in a CVM */
+export async function getContainers(cvmId: string): Promise<ContainerInfo[]> {
+  const res = await fetch(`${PHALA_API}/cvms/${cvmId}/containers`, { headers: headers() });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.containers || data;
+}
+
+/** List all CVMs in our workspace */
 export async function listCvms(): Promise<CvmInfo[]> {
   const res = await fetch(`${PHALA_API}/cvms`, { headers: headers() });
-  if (!res.ok) throw new Error(`Phala list failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Phala list failed (${res.status})`);
   const data = await res.json();
-  return data.data || data;
+  return data.items || data.data || data;
 }
 
 /** Restart a CVM */
@@ -104,22 +205,17 @@ export async function restart(cvmId: string): Promise<void> {
     method: "POST",
     headers: headers(),
   });
-  if (!res.ok) throw new Error(`Phala restart failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Phala restart failed (${res.status})`);
 }
 
-/** Delete a CVM */
+/** Delete/terminate a CVM */
 export async function terminate(cvmId: string): Promise<void> {
   const res = await fetch(`${PHALA_API}/cvms/${cvmId}`, {
     method: "DELETE",
     headers: headers(),
   });
-  if (!res.ok) throw new Error(`Phala delete failed: ${res.status}`);
-}
-
-/** Get CVM events (closest thing to logs) */
-export async function getEvents(cvmId: string): Promise<unknown[]> {
-  const res = await fetch(`${PHALA_API}/cvms/${cvmId}/events`, { headers: headers() });
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.data || data;
+  // 204 = success, no content
+  if (!res.ok && res.status !== 204) {
+    throw new Error(`Phala delete failed (${res.status})`);
+  }
 }

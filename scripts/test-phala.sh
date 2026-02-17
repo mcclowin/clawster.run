@@ -21,59 +21,55 @@ fi
 
 echo "🚀 Deploying $CVM_NAME to Phala TEE..."
 
-# --- Generate docker-compose.yml ---
-COMPOSE=$(cat <<EOF
-services:
+# --- Generate docker-compose YAML ---
+DOCKER_COMPOSE="services:
   openclaw:
-    image: coollabsio/openclaw:latest
+    image: ghcr.io/mcclowin/openclaw-tee:latest
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_KEY}
       - TELEGRAM_BOT_TOKEN=${BOT_TOKEN}
-      - TELEGRAM_ALLOW_FROM=${OWNER_ID}
-      - OPENCLAW_GATEWAY_TOKEN=${GATEWAY_TOKEN}
+      - TELEGRAM_OWNER_ID=${OWNER_ID}
+      - GATEWAY_TOKEN=${GATEWAY_TOKEN}
     ports:
-      - "3000:3000"
-    restart: unless-stopped
-EOF
-)
+      - \"3000:3000\"
+    restart: unless-stopped"
 
 # --- Step 1: Provision ---
 echo "📋 Provisioning..."
 PROVISION=$(curl -sf -X POST -H "X-API-Key: $PHALA_KEY" -H "Content-Type: application/json" \
   "$PHALA_API/cvms/provision" \
-  -d "$(jq -n --arg compose "$COMPOSE" --arg name "$CVM_NAME" '{
+  -d "$(jq -n --arg compose "$DOCKER_COMPOSE" --arg name "$CVM_NAME" '{
     name: $name,
-    compose_file: {name: "docker-compose.yml", content: $compose},
+    compose_file: {
+      docker_compose_file: $compose,
+      name: "",
+      public_logs: true,
+      public_sysinfo: true,
+      gateway_enabled: true
+    },
     vcpu: 1,
     memory: 2048,
-    disk_size: 10
+    disk_size: 20,
+    instance_type: "tdx.small"
   }')")
 
-COMPOSE_HASH=$(echo "$PROVISION" | jq -r '.compose_hash')
 APP_ID=$(echo "$PROVISION" | jq -r '.app_id')
+COMPOSE_HASH=$(echo "$PROVISION" | jq -r '.compose_hash')
 ENCRYPT_KEY=$(echo "$PROVISION" | jq -r '.app_env_encrypt_pubkey')
 
-echo "   compose_hash: $COMPOSE_HASH"
 echo "   app_id: $APP_ID"
+echo "   compose_hash: $COMPOSE_HASH"
 
-# --- Step 2: Deploy CVM ---
-echo "🏗️  Deploying CVM..."
+# --- Step 2: Commit CVM ---
+echo "🏗️  Committing CVM..."
 DEPLOY=$(curl -sf -X POST -H "X-API-Key: $PHALA_KEY" -H "Content-Type: application/json" \
   "$PHALA_API/cvms" \
   -d "$(jq -n \
-    --arg name "$CVM_NAME" \
-    --arg hash "$COMPOSE_HASH" \
-    --arg pubkey "$ENCRYPT_KEY" \
     --arg appid "$APP_ID" \
+    --arg hash "$COMPOSE_HASH" \
     '{
-      name: $name,
-      compose_hash: $hash,
-      app_env_encrypt_pubkey: $pubkey,
       app_id: $appid,
-      vcpu: 1,
-      memory: 2048,
-      disk_size: 10,
-      instance_type: "tdx.small"
+      compose_hash: $hash
     }')")
 
 CVM_ID=$(echo "$DEPLOY" | jq -r '.id')
@@ -82,18 +78,17 @@ echo "   Status: $(echo "$DEPLOY" | jq -r '.status')"
 
 # --- Step 3: Wait for running ---
 echo "⏳ Waiting for CVM to start..."
-for i in $(seq 1 60); do
+for i in $(seq 1 120); do
   STATUS=$(curl -sf -H "X-API-Key: $PHALA_KEY" "$PHALA_API/cvms/$CVM_ID" | jq -r '.status')
   if [[ "$STATUS" == "running" ]]; then
     echo "   ✅ CVM is running!"
     break
   elif [[ "$STATUS" == "failed" || "$STATUS" == "error" ]]; then
     echo "   ❌ CVM failed: $STATUS"
-    # Cleanup
     curl -sf -X DELETE -H "X-API-Key: $PHALA_KEY" "$PHALA_API/cvms/$CVM_ID" > /dev/null 2>&1 || true
     exit 1
   fi
-  printf "   %d/60 status=%s\r" "$i" "$STATUS"
+  printf "   %d/120 status=%s\r" "$i" "$STATUS"
   sleep 5
 done
 
@@ -103,21 +98,19 @@ if [[ "$STATUS" != "running" ]]; then
   exit 1
 fi
 
-# --- Step 4: Get app URL and test ---
-CVM_INFO=$(curl -sf -H "X-API-Key: $PHALA_KEY" "$PHALA_API/cvms/$CVM_ID")
-APP_URL=$(echo "$CVM_INFO" | jq -r '.app_url // empty')
-echo ""
-echo "📡 CVM Info:"
-echo "   URL: ${APP_URL:-"(not yet available)"}"
-echo "   VM UUID: $(echo "$CVM_INFO" | jq -r '.vm_uuid')"
-
-# Try to hit the gateway health endpoint
-if [[ -n "$APP_URL" ]]; then
-  echo ""
-  echo "🧪 Testing gateway health..."
-  HEALTH=$(curl -sf --max-time 10 "https://${APP_URL}/health" 2>/dev/null || echo "unreachable")
-  echo "   Health: $HEALTH"
-fi
+# --- Step 4: Wait for container ---
+echo "⏳ Waiting for container to start (image pull may take a few minutes)..."
+for i in $(seq 1 60); do
+  COMP=$(curl -sf -H "X-API-Key: $PHALA_KEY" "$PHALA_API/cvms/$CVM_ID/composition" 2>/dev/null || echo '{}')
+  CONTAINERS=$(echo "$COMP" | jq -r '.containers | length // 0' 2>/dev/null || echo 0)
+  if [[ "$CONTAINERS" -gt 0 ]]; then
+    echo "   ✅ Container is running!"
+    echo "$COMP" | jq '.containers[] | {names, state, status}'
+    break
+  fi
+  printf "   %d/60 waiting for image pull...\r" "$i"
+  sleep 10
+done
 
 # --- Step 5: Wait for user test ---
 echo ""
@@ -134,17 +127,7 @@ read -p "Press Enter when done testing to tear down..."
 # --- Step 6: Tear down ---
 echo "🗑️  Deleting CVM $CVM_ID..."
 curl -sf -X DELETE -H "X-API-Key: $PHALA_KEY" "$PHALA_API/cvms/$CVM_ID" > /dev/null 2>&1 || true
-
-# Wait for deletion
-for i in $(seq 1 12); do
-  DEL_STATUS=$(curl -sf -H "X-API-Key: $PHALA_KEY" "$PHALA_API/cvms/$CVM_ID" 2>/dev/null | jq -r '.status // "gone"')
-  if [[ "$DEL_STATUS" == "gone" || "$DEL_STATUS" == "null" ]]; then
-    echo "   ✅ CVM deleted."
-    break
-  fi
-  printf "   deleting... (%s)\r" "$DEL_STATUS"
-  sleep 5
-done
+echo "   ✅ CVM deleted."
 
 echo ""
 echo "✅ Test complete. CVM torn down."
