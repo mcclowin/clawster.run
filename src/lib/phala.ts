@@ -45,7 +45,11 @@ function makeCompose(envVars: { key: string; value: string }[]): string {
 ${envLines}
     ports:
       - "3000:3000"
-    restart: unless-stopped`;
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2048M`;
 }
 
 // ── Types ──

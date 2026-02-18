@@ -29,6 +29,10 @@ export function DashboardClient({ user, initialBots }: Props) {
   const [name, setName] = useState("");
   const [model, setModel] = useState("anthropic/claude-sonnet-4-20250514");
   const [size, setSize] = useState("small");
+  const [telegramToken, setTelegramToken] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [ownerId, setOwnerId] = useState("");
+  const [soul, setSoul] = useState("");
 
   async function handleSpawn() {
     setSpawning(true);
@@ -36,7 +40,7 @@ export function DashboardClient({ user, initialBots }: Props) {
       const res = await fetch("/api/bots/spawn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, model, size }),
+        body: JSON.stringify({ name, model, size, telegram_token: telegramToken, api_key: apiKey, owner_id: ownerId, soul: soul || undefined }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -176,9 +180,33 @@ export function DashboardClient({ user, initialBots }: Props) {
 
               <div style={s.sep} />
 
+              <div style={s.field}>
+                <label style={s.label}>Telegram Bot Token</label>
+                <input style={s.input} placeholder="123456789:ABCdefGHI..." value={telegramToken} onChange={e => setTelegramToken(e.target.value)} />
+                <div style={s.hint}>Get from <a href="https://t.me/BotFather" target="_blank" rel="noopener" style={{color:"#f97316"}}>@BotFather</a> → /newbot</div>
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>AI API Key</label>
+                <input style={{...s.input, fontFamily:"monospace"}} type="password" placeholder="sk-ant-..." value={apiKey} onChange={e => setApiKey(e.target.value)} />
+                <div style={s.hint}>Your Anthropic, OpenAI, or Google API key</div>
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>Your Telegram ID</label>
+                <input style={s.input} placeholder="1234567890" value={ownerId} onChange={e => setOwnerId(e.target.value)} />
+                <div style={s.hint}>Get from <a href="https://t.me/userinfobot" target="_blank" rel="noopener" style={{color:"#f97316"}}>@userinfobot</a></div>
+              </div>
+
+              <div style={s.field}>
+                <label style={s.label}>Bot Personality <span style={{color:"#3a4060"}}>(optional)</span></label>
+                <textarea style={{...s.input, minHeight:60, resize:"vertical" as const}} placeholder="e.g. You are a helpful assistant. Be concise." value={soul} onChange={e => setSoul(e.target.value)} />
+              </div>
+
+              <div style={s.sep} />
+
               <div style={{ fontSize: 11, color: "#3a4060", marginBottom: 24, lineHeight: 1.8 }}>
-                After spawning, you'll be prompted to enter your Telegram token and API key.
-                These are encrypted directly to the TEE — Clawster never sees them.
+                Your secrets are sent directly to the TEE hardware enclave. Clawster cannot read them.
               </div>
 
               <div style={{ display: "flex", gap: 10 }}>
