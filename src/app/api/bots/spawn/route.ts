@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
     }, { status: 201 });
 
   } catch (err) {
+    console.error("[spawn] Phala deploy failed:", err);
     await dbRun(
       "UPDATE bots SET status = 'error', updated_at = datetime('now') WHERE id = ?",
       botId
