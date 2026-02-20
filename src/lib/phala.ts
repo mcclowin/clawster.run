@@ -36,7 +36,9 @@ export function getSize(size: string) {
 
 function makeCompose(envVars: { key: string; value: string }[]): string {
   const image = process.env.OPENCLAW_IMAGE || "ghcr.io/mcclowin/openclaw-tee:latest";
-  const envLines = envVars.map(e => `      - ${e.key}=\${${e.key}}`).join("\n");
+  // Hardcode values directly — Phala CLI encrypts automatically but raw API doesn't,
+  // so ${VAR} substitution won't work without encrypted_env
+  const envLines = envVars.map(e => `      - ${e.key}=${e.value}`).join("\n");
 
   return `services:
   openclaw:
