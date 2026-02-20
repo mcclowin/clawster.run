@@ -24,10 +24,16 @@ export async function POST(req: NextRequest) {
   }
 
   const existing = await dbGet(
-    "SELECT id FROM bots WHERE user_id = ? AND name = ? AND status != 'terminated'",
+    "SELECT id, status FROM bots WHERE user_id = ? AND name = ?",
     user.id, name
   );
-  if (existing) return NextResponse.json({ error: "Bot name already in use" }, { status: 409 });
+  if (existing) {
+    if ((existing as any).status !== 'terminated') {
+      return NextResponse.json({ error: "Bot name already in use" }, { status: 409 });
+    }
+    // Remove old terminated record so we can reuse the name
+    await dbRun("DELETE FROM bots WHERE id = ?", (existing as any).id);
+  }
 
   const botId = generateId();
   const instanceSize = ["small", "medium"].includes(size) ? size : "small";
