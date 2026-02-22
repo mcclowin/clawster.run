@@ -58,35 +58,28 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Phase 1: Provision — stores compose, returns TEE pubkey
-    const prov = await phala.provision(name, instanceSize as phala.SizeKey, envVars);
-
-    // Store TEE pubkey for future encrypted env updates
-    await dbRun(
-      "UPDATE bots SET phala_app_id = ?, tee_pubkey = ?, updated_at = datetime('now') WHERE id = ?",
-      prov.app_id, prov.app_env_encrypt_pubkey, botId
+    // Deploy: provision → encrypt to TEE pubkey → commit (all in one call)
+    const { cvm, teePubkey } = await phala.spawn(
+      name,
+      instanceSize as phala.SizeKey,
+      envVars
     );
-
-    // Phase 2: Commit — starts the CVM
-    // TODO: In production, encrypt envVars to TEE pubkey before sending
-    // For now, env vars are passed in compose file (Phala CLI encrypts automatically,
-    // but raw API needs manual encryption via x25519 + AES-GCM)
-    const cvm = await phala.commit(prov.app_id, prov.compose_hash);
 
     // Update bot record with CVM info
     const cvmId = cvm.vm_uuid || cvm.id;
+    const appId = cvm.app_id || "";
     await dbRun(
-      "UPDATE bots SET phala_cvm_id = ?, status = 'starting', updated_at = datetime('now') WHERE id = ?",
-      cvmId, botId
+      "UPDATE bots SET phala_app_id = ?, phala_cvm_id = ?, tee_pubkey = ?, status = 'starting', updated_at = datetime('now') WHERE id = ?",
+      appId, cvmId, teePubkey, botId
     );
 
     return NextResponse.json({
       bot_id: botId,
       name,
       status: "starting",
-      phala_app_id: prov.app_id,
+      phala_app_id: appId,
       phala_cvm_id: cvmId,
-      tee_pubkey: prov.app_env_encrypt_pubkey,
+      tee_pubkey: teePubkey,
     }, { status: 201 });
 
   } catch (err) {

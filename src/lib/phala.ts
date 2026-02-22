@@ -36,9 +36,8 @@ export function getSize(size: string) {
 
 function makeCompose(envVars: { key: string; value: string }[]): string {
   const image = process.env.OPENCLAW_IMAGE || "ghcr.io/mcclowin/openclaw-tee:latest";
-  // Hardcode values directly — Phala CLI encrypts automatically but raw API doesn't,
-  // so ${VAR} substitution won't work without encrypted_env
-  const envLines = envVars.map(e => `      - ${e.key}=${e.value}`).join("\n");
+  // Use ${VAR} placeholders — values are passed via encrypted_env (x25519 + AES-GCM)
+  const envLines = envVars.map(e => `      - ${e.key}=\${${e.key}}`).join("\n");
 
   return `services:
   openclaw:
@@ -163,18 +162,22 @@ export async function commit(
   return res.json();
 }
 
-// ── Full deploy (provision + commit) ──
+// ── Full deploy (provision + encrypt + commit) ──
 
 export async function spawn(
   name: string,
   size: SizeKey,
-  envVars: { key: string; value: string }[],
-  encryptedEnv?: string
+  envVars: { key: string; value: string }[]
 ): Promise<{ cvm: CvmInfo; teePubkey: string }> {
-  // Phase 1: provision — stores compose, gets TEE pubkey
+  const { encryptEnvVars } = await import("./encrypt");
+
+  // Phase 1: provision — stores compose with ${VAR} placeholders, gets TEE pubkey
   const prov = await provision(name, size, envVars);
 
-  // Phase 2: commit — starts the CVM
+  // Phase 2: encrypt env vars to TEE pubkey (x25519 + AES-GCM)
+  const encryptedEnv = await encryptEnvVars(envVars, prov.app_env_encrypt_pubkey);
+
+  // Phase 3: commit — starts the CVM with encrypted secrets
   const cvm = await commit(prov.app_id, prov.compose_hash, encryptedEnv);
 
   return { cvm, teePubkey: prov.app_env_encrypt_pubkey };
