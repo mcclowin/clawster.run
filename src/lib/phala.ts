@@ -111,6 +111,7 @@ export async function provision(
       instance_type: s.instanceType,
       compose_file: {
         docker_compose_file: compose,
+        allowed_envs: envVars.map(e => e.key),
         name: "",
         public_logs: true,
         public_sysinfo: true,
@@ -137,7 +138,8 @@ export async function provision(
 export async function commit(
   appId: string,
   composeHash: string,
-  encryptedEnv?: string
+  encryptedEnv?: string,
+  envKeys?: string[]
 ): Promise<CvmInfo> {
   const body: Record<string, unknown> = {
     app_id: appId,
@@ -146,6 +148,9 @@ export async function commit(
 
   if (encryptedEnv) {
     body.encrypted_env = encryptedEnv;
+  }
+  if (envKeys && envKeys.length > 0) {
+    body.env_keys = envKeys;
   }
 
   const res = await fetch(`${PHALA_API}/cvms`, {
@@ -177,8 +182,9 @@ export async function spawn(
   // Phase 2: encrypt env vars to TEE pubkey (x25519 + AES-GCM)
   const encryptedEnv = await encryptEnvVars(envVars, prov.app_env_encrypt_pubkey);
 
-  // Phase 3: commit — starts the CVM with encrypted secrets
-  const cvm = await commit(prov.app_id, prov.compose_hash, encryptedEnv);
+  // Phase 3: commit — starts the CVM with encrypted secrets + env key names
+  const envKeys = envVars.map(e => e.key);
+  const cvm = await commit(prov.app_id, prov.compose_hash, encryptedEnv, envKeys);
 
   return { cvm, teePubkey: prov.app_env_encrypt_pubkey };
 }

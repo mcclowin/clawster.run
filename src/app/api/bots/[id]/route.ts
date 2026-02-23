@@ -12,9 +12,21 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   if (!bot) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   if (bot.phala_cvm_id) {
-    try { await phala.terminate(bot.phala_cvm_id as string); } catch { /* gone */ }
+    try {
+      await phala.terminate(bot.phala_cvm_id as string);
+    } catch (err: unknown) {
+      // Only ignore 404 (already gone). Everything else = real failure.
+      const status = (err as { message?: string })?.message?.match(/(\d{3})/)?.[1];
+      if (status !== "404") {
+        return NextResponse.json(
+          { error: "Failed to terminate on Phala", detail: err instanceof Error ? err.message : String(err) },
+          { status: 502 }
+        );
+      }
+    }
   }
 
+  // Only mark terminated AFTER Phala confirms deletion
   await dbRun("UPDATE bots SET status = 'terminated', terminated_at = datetime('now'), updated_at = datetime('now') WHERE id = ?", id);
   return NextResponse.json({ status: "terminated" });
 }
