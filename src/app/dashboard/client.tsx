@@ -7,7 +7,7 @@
  * bot actions (restart, terminate), polling for status updates.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface Bot {
   id: string; name: string; status: string; model: string;
@@ -35,28 +35,39 @@ export function DashboardClient({ user, initialBots }: Props) {
   const [soul, setSoul] = useState("");
 
   // Poll Phala status every 10s for non-terminal bots
-  const syncStatuses = useCallback(async () => {
-    const active = bots.filter(b => !["terminated", "error"].includes(b.status));
-    if (active.length === 0) return;
-    const updated = await Promise.all(
-      bots.map(async (b) => {
-        if (!b.id || ["terminated", "terminating"].includes(b.status)) return b;
-        try {
-          const res = await fetch(`/api/bots/${b.id}/status`);
-          if (!res.ok) return b;
-          const data = await res.json();
-          return { ...b, status: data.status, cvm_endpoint: data.cvm_endpoint || b.cvm_endpoint };
-        } catch { return b; }
-      })
-    );
-    setBots(updated);
-  }, [bots]);
+  // Use a ref to avoid stale closure / infinite re-render loop
+  const botsRef = useRef(bots);
+  botsRef.current = bots;
+  const pollingRef = useRef(false);
 
   useEffect(() => {
+    async function syncStatuses() {
+      if (pollingRef.current) return; // skip if previous poll still running
+      const currentBots = botsRef.current;
+      const active = currentBots.filter(b => b.id && !["terminated", "terminating", "error"].includes(b.status));
+      if (active.length === 0) return;
+      pollingRef.current = true;
+      try {
+        const updated = await Promise.all(
+          currentBots.map(async (b) => {
+            if (!b.id || ["terminated", "terminating"].includes(b.status)) return b;
+            try {
+              const res = await fetch(`/api/bots/${b.id}/status`);
+              if (!res.ok) return b;
+              const data = await res.json();
+              return { ...b, status: data.status, cvm_endpoint: data.cvm_endpoint || b.cvm_endpoint };
+            } catch { return b; }
+          })
+        );
+        setBots(updated);
+      } finally {
+        pollingRef.current = false;
+      }
+    }
+    syncStatuses();
     const interval = setInterval(syncStatuses, 10000);
-    syncStatuses(); // immediate first sync
     return () => clearInterval(interval);
-  }, [syncStatuses]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSpawn() {
     setSpawning(true);
@@ -85,18 +96,27 @@ export function DashboardClient({ user, initialBots }: Props) {
     setBots(bots.map(b => b.id === id ? { ...b, status: "provisioning" } : b));
   }
 
+  const [terminatingIds, setTerminatingIds] = useState<Set<string>>(new Set());
+
   async function handleTerminate(id: string) {
     if (!confirm("Terminate this bot? This is irreversible.")) return;
-    // Instant UI feedback
+    // Mark as terminating — both in bots state and a separate set to block polling
+    setTerminatingIds(prev => new Set(prev).add(id));
     setBots(prev => prev.map(b => b.id === id ? { ...b, status: "terminating" } : b));
-    const res = await fetch(`/api/bots/${id}`, { method: "DELETE" });
-    if (res.ok) {
-      setBots(prev => prev.filter(b => b.id !== id));
-    } else {
-      const data = await res.json().catch(() => ({ error: "Unknown error" }));
-      alert(`Termination failed: ${data.error || data.detail || "Unknown error"}`);
-      // Revert — polling will fix the real status
+    try {
+      const res = await fetch(`/api/bots/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setBots(prev => prev.filter(b => b.id !== id));
+      } else {
+        const data = await res.json().catch(() => ({ error: "Unknown error" }));
+        alert(`Termination failed: ${data.error || data.detail || "Unknown error"}`);
+        setBots(prev => prev.map(b => b.id === id ? { ...b, status: "error" } : b));
+      }
+    } catch (err) {
+      alert(`Termination failed: ${String(err)}`);
       setBots(prev => prev.map(b => b.id === id ? { ...b, status: "error" } : b));
+    } finally {
+      setTerminatingIds(prev => { const next = new Set(prev); next.delete(id); return next; });
     }
   }
 
