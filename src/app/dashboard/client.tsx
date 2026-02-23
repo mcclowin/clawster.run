@@ -40,7 +40,7 @@ export function DashboardClient({ user, initialBots }: Props) {
     if (active.length === 0) return;
     const updated = await Promise.all(
       bots.map(async (b) => {
-        if (["terminated", "terminating"].includes(b.status)) return b;
+        if (!b.id || ["terminated", "terminating"].includes(b.status)) return b;
         try {
           const res = await fetch(`/api/bots/${b.id}/status`);
           if (!res.ok) return b;
@@ -68,7 +68,7 @@ export function DashboardClient({ user, initialBots }: Props) {
       });
       const data = await res.json();
       if (res.ok) {
-        setBots([{ ...data, model, instance_size: size, cvm_endpoint: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...bots]);
+        setBots([{ id: data.bot_id, name: data.name, status: data.status, model, instance_size: size, cvm_endpoint: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...bots]);
         setName("");
         setTab("bots");
       } else {
