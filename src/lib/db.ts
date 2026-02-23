@@ -31,6 +31,7 @@ export async function getDb(): Promise<SqlJsDatabase> {
   }
 
   migrate(_db);
+  migrateAddColumns(_db);
   return _db;
 }
 
@@ -62,6 +63,11 @@ function migrate(db: SqlJsDatabase) {
       instance_size   TEXT DEFAULT 'small',
       tee_pubkey      TEXT,
       cvm_endpoint    TEXT,
+      stripe_subscription_id TEXT,
+      pending_telegram_token TEXT,
+      pending_api_key        TEXT,
+      pending_owner_id       TEXT,
+      pending_soul           TEXT,
       created_at      TEXT DEFAULT (datetime('now')),
       updated_at      TEXT DEFAULT (datetime('now')),
       terminated_at   TEXT,
@@ -79,6 +85,19 @@ function migrate(db: SqlJsDatabase) {
       metered_at        TEXT DEFAULT (datetime('now'))
     );
   `);
+  saveDb();
+}
+
+/** Add columns that may not exist in older DBs */
+function migrateAddColumns(db: SqlJsDatabase) {
+  const cols = ["stripe_subscription_id", "pending_telegram_token", "pending_api_key", "pending_owner_id", "pending_soul"];
+  for (const col of cols) {
+    try {
+      db.run(`ALTER TABLE bots ADD COLUMN ${col} TEXT`);
+    } catch {
+      // column already exists — ignore
+    }
+  }
   saveDb();
 }
 

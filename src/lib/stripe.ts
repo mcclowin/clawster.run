@@ -79,7 +79,7 @@ export async function reportUsage(
   });
 }
 
-/** Create a checkout session for new subscribers */
+/** Create a checkout session for new subscribers (legacy) */
 export async function createCheckout(
   customerId: string,
   successUrl: string,
@@ -95,6 +95,45 @@ export async function createCheckout(
     line_items: [{ price: priceId }],
     success_url: successUrl,
     cancel_url: cancelUrl,
+  });
+
+  return session.url!;
+}
+
+/**
+ * Create a Checkout session for a specific bot subscription.
+ * Uses the appropriate price ID based on instance size.
+ * Stores botId in metadata so webhook can trigger deploy.
+ */
+export async function createBotCheckout(
+  customerId: string,
+  botId: string,
+  instanceSize: string,
+  _retailPerHour: number,
+  successUrl: string,
+  cancelUrl: string
+): Promise<string> {
+  const stripe = getStripe();
+
+  // Use size-specific price IDs: STRIPE_PRICE_ID_SMALL, STRIPE_PRICE_ID_MEDIUM
+  // Falls back to STRIPE_PRICE_ID for backward compat
+  const priceId = instanceSize === "medium"
+    ? (process.env.STRIPE_PRICE_ID_MEDIUM || process.env.STRIPE_PRICE_ID)
+    : (process.env.STRIPE_PRICE_ID_SMALL || process.env.STRIPE_PRICE_ID);
+
+  if (!priceId) throw new Error("STRIPE_PRICE_ID not configured");
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: "subscription",
+    line_items: [{ price: priceId, quantity: 1 }],
+    subscription_data: {
+      metadata: { clawster_bot_id: botId, instance_size: instanceSize },
+    },
+    metadata: { clawster_bot_id: botId },
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    consent_collection: { terms_of_service: "required" },
   });
 
   return session.url!;

@@ -44,7 +44,7 @@ export function DashboardClient({ user, initialBots }: Props) {
     async function syncStatuses() {
       if (pollingRef.current) return; // skip if previous poll still running
       const currentBots = botsRef.current;
-      const active = currentBots.filter(b => b.id && !["terminated", "terminating", "error"].includes(b.status));
+      const active = currentBots.filter(b => b.id && !["terminated", "terminating", "error", "pending_payment"].includes(b.status));
       if (active.length === 0) return;
       pollingRef.current = true;
       try {
@@ -79,7 +79,15 @@ export function DashboardClient({ user, initialBots }: Props) {
       });
       const data = await res.json();
       if (res.ok) {
-        setBots([{ id: data.bot_id, name: data.name, status: data.status, model, instance_size: size, cvm_endpoint: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...bots]);
+        // If checkout URL returned, redirect to Stripe
+        if (data.checkout_url) {
+          // Add bot to list as pending before redirecting
+          setBots(prev => [{ id: data.bot_id, name: data.name || name, status: "pending_payment", model, instance_size: size, cvm_endpoint: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...prev]);
+          window.location.href = data.checkout_url;
+          return;
+        }
+        // Billing bypassed — bot deploying directly
+        setBots(prev => [{ id: data.bot_id, name: data.name || name, status: data.status, model, instance_size: size, cvm_endpoint: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, ...prev]);
         setName("");
         setTab("bots");
       } else {
@@ -144,6 +152,9 @@ export function DashboardClient({ user, initialBots }: Props) {
       const colors: Record<string, { bg: string; color: string; border: string }> = {
         running: { bg: "rgba(52,211,153,0.1)", color: "#34d399", border: "rgba(52,211,153,0.2)" },
         provisioning: { bg: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "rgba(251,191,36,0.2)" },
+        starting: { bg: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "rgba(251,191,36,0.2)" },
+        pending_payment: { bg: "rgba(168,85,247,0.1)", color: "#a855f7", border: "rgba(168,85,247,0.2)" },
+        terminating: { bg: "rgba(248,113,113,0.08)", color: "#f87171", border: "rgba(248,113,113,0.15)" },
         error: { bg: "rgba(248,113,113,0.08)", color: "#f87171", border: "rgba(248,113,113,0.15)" },
         stopped: { bg: "rgba(248,113,113,0.08)", color: "#f87171", border: "rgba(248,113,113,0.15)" },
       };
@@ -154,7 +165,9 @@ export function DashboardClient({ user, initialBots }: Props) {
   };
 
   const statusLabel: Record<string, string> = {
-    running: "● RUNNING", provisioning: "● SPAWNING", error: "● ERROR", stopped: "● STOPPED",
+    running: "● RUNNING", provisioning: "● SPAWNING", starting: "● STARTING",
+    pending_payment: "● AWAITING PAYMENT", terminating: "● TERMINATING",
+    error: "● ERROR", stopped: "● STOPPED",
   };
 
   return (
@@ -259,7 +272,10 @@ export function DashboardClient({ user, initialBots }: Props) {
               <div style={s.sep} />
 
               <div style={{ fontSize: 11, color: "#3a4060", marginBottom: 24, lineHeight: 1.8 }}>
-                Your secrets are sent directly to the TEE hardware enclave. Clawster cannot read them.
+                Your secrets are encrypted and sent directly to the TEE hardware enclave. Clawster cannot read them.
+                By spawning a bot you agree to our{" "}
+                <a href="/terms" target="_blank" style={{ color: "#f97316" }}>Terms of Service</a> and{" "}
+                <a href="/privacy" target="_blank" style={{ color: "#f97316" }}>Privacy Policy</a>.
               </div>
 
               <div style={{ display: "flex", gap: 10 }}>
@@ -365,8 +381,8 @@ export function DashboardClient({ user, initialBots }: Props) {
 
       {/* Bottom */}
       <div style={s.bottomBar}>
-        <div>clawster.run · v0.1</div>
-        <div>brain&bot © 2026</div>
+        <div>clawster.run · v0.1 · <a href="/terms" style={{ color: "#3a4060" }}>terms</a> · <a href="/privacy" style={{ color: "#3a4060" }}>privacy</a></div>
+        <div>brain&amp;bot © 2026</div>
       </div>
     </div>
   );
