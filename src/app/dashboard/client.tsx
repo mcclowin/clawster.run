@@ -40,7 +40,7 @@ export function DashboardClient({ user, initialBots }: Props) {
     if (active.length === 0) return;
     const updated = await Promise.all(
       bots.map(async (b) => {
-        if (["terminated"].includes(b.status)) return b;
+        if (["terminated", "terminating"].includes(b.status)) return b;
         try {
           const res = await fetch(`/api/bots/${b.id}/status`);
           if (!res.ok) return b;
@@ -87,8 +87,17 @@ export function DashboardClient({ user, initialBots }: Props) {
 
   async function handleTerminate(id: string) {
     if (!confirm("Terminate this bot? This is irreversible.")) return;
-    await fetch(`/api/bots/${id}`, { method: "DELETE" });
-    setBots(bots.filter(b => b.id !== id));
+    // Instant UI feedback
+    setBots(prev => prev.map(b => b.id === id ? { ...b, status: "terminating" } : b));
+    const res = await fetch(`/api/bots/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setBots(prev => prev.filter(b => b.id !== id));
+    } else {
+      const data = await res.json().catch(() => ({ error: "Unknown error" }));
+      alert(`Termination failed: ${data.error || data.detail || "Unknown error"}`);
+      // Revert — polling will fix the real status
+      setBots(prev => prev.map(b => b.id === id ? { ...b, status: "error" } : b));
+    }
   }
 
   const s = {
