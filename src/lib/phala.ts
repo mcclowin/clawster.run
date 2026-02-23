@@ -178,13 +178,16 @@ export async function spawn(
 
   // Phase 1: provision — stores compose with ${VAR} placeholders, gets TEE pubkey
   const prov = await provision(name, size, envVars);
+  console.log("[phala.spawn] provision result:", JSON.stringify(prov));
 
   // Phase 2: encrypt env vars to TEE pubkey (x25519 + AES-GCM)
   const encryptedEnv = await encryptEnvVars(envVars, prov.app_env_encrypt_pubkey);
+  console.log("[phala.spawn] encrypted_env length:", encryptedEnv.length, "env_keys:", envVars.map(e => e.key));
 
   // Phase 3: commit — starts the CVM with encrypted secrets + env key names
   const envKeys = envVars.map(e => e.key);
   const cvm = await commit(prov.app_id, prov.compose_hash, encryptedEnv, envKeys);
+  console.log("[phala.spawn] commit result:", JSON.stringify(cvm));
 
   return { cvm, teePubkey: prov.app_env_encrypt_pubkey };
 }
