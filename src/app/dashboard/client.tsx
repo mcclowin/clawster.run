@@ -7,7 +7,7 @@
  * bot actions (restart, terminate), polling for status updates.
  */
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface Bot {
   id: string; name: string; status: string; model: string;
@@ -33,6 +33,30 @@ export function DashboardClient({ user, initialBots }: Props) {
   const [apiKey, setApiKey] = useState("");
   const [ownerId, setOwnerId] = useState("");
   const [soul, setSoul] = useState("");
+
+  // Poll Phala status every 10s for non-terminal bots
+  const syncStatuses = useCallback(async () => {
+    const active = bots.filter(b => !["terminated", "error"].includes(b.status));
+    if (active.length === 0) return;
+    const updated = await Promise.all(
+      bots.map(async (b) => {
+        if (["terminated"].includes(b.status)) return b;
+        try {
+          const res = await fetch(`/api/bots/${b.id}/status`);
+          if (!res.ok) return b;
+          const data = await res.json();
+          return { ...b, status: data.status, cvm_endpoint: data.cvm_endpoint || b.cvm_endpoint };
+        } catch { return b; }
+      })
+    );
+    setBots(updated);
+  }, [bots]);
+
+  useEffect(() => {
+    const interval = setInterval(syncStatuses, 10000);
+    syncStatuses(); // immediate first sync
+    return () => clearInterval(interval);
+  }, [syncStatuses]);
 
   async function handleSpawn() {
     setSpawning(true);
