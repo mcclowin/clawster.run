@@ -226,6 +226,53 @@ export async function restart(cvmId: string): Promise<void> {
   if (!res.ok) throw new Error(`Phala restart failed (${res.status})`);
 }
 
+/** Get attestation info for a CVM */
+export async function getAttestation(cvmId: string): Promise<Record<string, unknown> | null> {
+  // Try multiple attestation endpoints (Phala API varies)
+  for (const path of [`/cvms/${cvmId}/attestation`, `/cvms/${cvmId}/attestations`]) {
+    try {
+      const res = await fetch(`${PHALA_API}${path}`, { headers: headers() });
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+    } catch { /* try next */ }
+  }
+
+  // Fallback: get attestation from CVM endpoint's /attestation path
+  // dstack exposes attestation at the CVM's own endpoint
+  return null;
+}
+
+/** Get container logs for a CVM */
+export async function getLogs(cvmId: string, tail: number = 100): Promise<string> {
+  // Try getting logs from Phala API
+  try {
+    const res = await fetch(`${PHALA_API}/cvms/${cvmId}/logs?tail=${tail}`, { headers: headers() });
+    if (res.ok) {
+      const data = await res.json();
+      // Could be { logs: string } or { logs: string[] } or raw text
+      if (typeof data === "string") return data;
+      if (data.logs) return Array.isArray(data.logs) ? data.logs.join("\n") : data.logs;
+      return JSON.stringify(data);
+    }
+  } catch { /* fall through */ }
+
+  // Fallback: get logs from containers endpoint
+  try {
+    const containers = await getContainers(cvmId);
+    if (containers.length > 0) {
+      const cid = containers[0].id || containers[0].names?.[0];
+      if (cid) {
+        const res = await fetch(`${PHALA_API}/cvms/${cvmId}/containers/${cid}/logs?tail=${tail}`, { headers: headers() });
+        if (res.ok) return await res.text();
+      }
+    }
+  } catch { /* no logs available */ }
+
+  return "";
+}
+
 /** Delete/terminate a CVM */
 export async function terminate(cvmId: string): Promise<void> {
   console.log(`[phala.terminate] DELETE ${PHALA_API}/cvms/${cvmId}`);

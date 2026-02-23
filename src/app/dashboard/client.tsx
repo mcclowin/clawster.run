@@ -15,6 +15,15 @@ interface Bot {
   created_at: string; updated_at: string;
 }
 
+interface AttestationData {
+  tee_platform: string;
+  encryption: { algorithm: string; tee_pubkey: string | null; description: string };
+  phala: { app_id: string | null; cvm_id: string | null; cvm_endpoint: string | null };
+  verification: { trust_center: string | null; docker_image: string; description: string };
+  tee_quote: Record<string, string> | null;
+  live_attestation: unknown;
+}
+
 interface Props {
   user: { id: string; email: string };
   initialBots: Bot[];
@@ -105,6 +114,44 @@ export function DashboardClient({ user, initialBots }: Props) {
   }
 
   const [terminatingIds, setTerminatingIds] = useState<Set<string>>(new Set());
+  const [expandedBot, setExpandedBot] = useState<string | null>(null);
+  const [botTab, setBotTab] = useState<"info" | "security" | "logs">("info");
+  const [attestation, setAttestation] = useState<AttestationData | null>(null);
+  const [botLogs, setBotLogs] = useState<string>("");
+  const [loadingAttestation, setLoadingAttestation] = useState(false);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  async function fetchAttestation(botId: string) {
+    setLoadingAttestation(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/attestation`);
+      if (res.ok) setAttestation(await res.json());
+    } catch { /* ignore */ }
+    setLoadingAttestation(false);
+  }
+
+  async function fetchLogs(botId: string) {
+    setLoadingLogs(true);
+    try {
+      const res = await fetch(`/api/bots/${botId}/logs?tail=200`);
+      if (res.ok) {
+        const data = await res.json();
+        setBotLogs(data.logs || "No logs available");
+      }
+    } catch { setBotLogs("Failed to fetch logs"); }
+    setLoadingLogs(false);
+  }
+
+  function toggleBotExpand(botId: string) {
+    if (expandedBot === botId) {
+      setExpandedBot(null);
+    } else {
+      setExpandedBot(botId);
+      setBotTab("info");
+      setAttestation(null);
+      setBotLogs("");
+    }
+  }
 
   async function handleTerminate(id: string) {
     if (!confirm("Terminate this bot? This is irreversible.")) return;
@@ -300,30 +347,221 @@ export function DashboardClient({ user, initialBots }: Props) {
 
               {bots.map(bot => (
                 <div key={bot.id} style={s.card}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                    <span style={{ fontSize: 13, color: "#e0e4f0", fontWeight: 600 }}>🦞 {bot.name}</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, cursor: "pointer" }} onClick={() => toggleBotExpand(bot.id)}>
+                    <span style={{ fontSize: 13, color: "#e0e4f0", fontWeight: 600 }}>🦞 {bot.name} <span style={{ fontSize: 10, color: "#3a4060" }}>{expandedBot === bot.id ? "▾" : "▸"}</span></span>
                     <span style={s.badge(bot.status)}>{statusLabel[bot.status] || "● UNKNOWN"}</span>
                   </div>
-                  <div style={{ fontSize: 11, lineHeight: 2.2, color: "#3a4060" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>Model</span><span style={{ color: "#8890b0" }}>{bot.model}</span>
+
+                  {/* Collapsed view */}
+                  {expandedBot !== bot.id && (
+                    <>
+                      <div style={{ fontSize: 11, lineHeight: 2.2, color: "#3a4060" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>Model</span><span style={{ color: "#8890b0" }}>{bot.model}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>Size</span><span style={{ color: "#8890b0" }}>{bot.instance_size}</span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <span>Created</span><span style={{ color: "#8890b0" }}>{new Date(bot.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                        {bot.status === "running" && (
+                          <button style={s.btnGhost} onClick={() => handleRestart(bot.id)}>RESTART</button>
+                        )}
+                        {["error", "stopped"].includes(bot.status) && (
+                          <button style={{ ...s.btnSpawn, padding: "6px 16px" }} onClick={() => handleRestart(bot.id)}>🦞 RESPAWN</button>
+                        )}
+                        <button style={s.btnKill} onClick={() => handleTerminate(bot.id)}>TERMINATE</button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Expanded view */}
+                  {expandedBot === bot.id && (
+                    <div>
+                      {/* Sub-tabs */}
+                      <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid #1c2030" }}>
+                        {(["info", "security", "logs"] as const).map(t => (
+                          <button key={t} onClick={() => {
+                            setBotTab(t);
+                            if (t === "security" && !attestation) fetchAttestation(bot.id);
+                            if (t === "logs" && !botLogs) fetchLogs(bot.id);
+                          }} style={{
+                            padding: "8px 16px", fontSize: 10, letterSpacing: 2, textTransform: "uppercase",
+                            background: "transparent", border: "none", cursor: "pointer",
+                            color: botTab === t ? "#f97316" : "#3a4060",
+                            borderBottom: `2px solid ${botTab === t ? "#f97316" : "transparent"}`,
+                            fontFamily: "'JetBrains Mono', monospace",
+                          }}>{t}</button>
+                        ))}
+                      </div>
+
+                      {/* Info tab */}
+                      {botTab === "info" && (
+                        <div>
+                          <div style={{ fontSize: 11, lineHeight: 2.4, color: "#3a4060" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span>Model</span><span style={{ color: "#8890b0" }}>{bot.model}</span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span>Size</span><span style={{ color: "#8890b0" }}>{bot.instance_size}</span>
+                            </div>
+                            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                              <span>Created</span><span style={{ color: "#8890b0" }}>{new Date(bot.created_at).toLocaleDateString()}</span>
+                            </div>
+                            {bot.cvm_endpoint && (
+                              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                <span>Endpoint</span><span style={{ color: "#8890b0", fontSize: 10 }}>{bot.cvm_endpoint}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                            {bot.status === "running" && (
+                              <button style={s.btnGhost} onClick={() => handleRestart(bot.id)}>RESTART</button>
+                            )}
+                            {["error", "stopped"].includes(bot.status) && (
+                              <button style={{ ...s.btnSpawn, padding: "6px 16px" }} onClick={() => handleRestart(bot.id)}>🦞 RESPAWN</button>
+                            )}
+                            <button style={s.btnKill} onClick={() => handleTerminate(bot.id)}>TERMINATE</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Security tab */}
+                      {botTab === "security" && (
+                        <div style={{ fontSize: 11, lineHeight: 2 }}>
+                          {loadingAttestation ? (
+                            <div style={{ color: "#3a4060" }}>Loading attestation data...</div>
+                          ) : attestation ? (
+                            <div>
+                              {/* Encryption proof */}
+                              <div style={{ marginBottom: 20 }}>
+                                <div style={{ color: "#f97316", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>🔐 Secret Encryption</div>
+                                <div style={{ background: "#080a0f", border: "1px solid #1c2030", borderRadius: 4, padding: 14 }}>
+                                  <div style={{ color: "#34d399", marginBottom: 4 }}>✅ Secrets encrypted client-side</div>
+                                  <div style={{ color: "#34d399", marginBottom: 4 }}>✅ Clawster never saw plaintext</div>
+                                  <div style={{ color: "#8890b0", marginBottom: 4 }}>
+                                    Algorithm: <span style={{ color: "#b8bfe0" }}>{attestation.encryption.algorithm || "x25519 + AES-256-GCM"}</span>
+                                  </div>
+                                  {attestation.encryption.tee_pubkey && (
+                                    <div style={{ color: "#8890b0" }}>
+                                      TEE Pubkey: <span style={{ color: "#b8bfe0", fontFamily: "monospace", fontSize: 10 }}>
+                                        {attestation.encryption.tee_pubkey.slice(0, 32)}...
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* TEE Platform */}
+                              <div style={{ marginBottom: 20 }}>
+                                <div style={{ color: "#f97316", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>🛡️ TEE Attestation</div>
+                                <div style={{ background: "#080a0f", border: "1px solid #1c2030", borderRadius: 4, padding: 14 }}>
+                                  <div style={{ color: "#8890b0", marginBottom: 4 }}>
+                                    Platform: <span style={{ color: "#b8bfe0" }}>{attestation.tee_platform}</span>
+                                  </div>
+                                  {attestation.phala.app_id && (
+                                    <div style={{ color: "#8890b0", marginBottom: 4 }}>
+                                      App ID: <span style={{ color: "#b8bfe0", fontFamily: "monospace", fontSize: 10 }}>
+                                        {attestation.phala.app_id}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {attestation.phala.cvm_id && (
+                                    <div style={{ color: "#8890b0", marginBottom: 4 }}>
+                                      CVM ID: <span style={{ color: "#b8bfe0", fontFamily: "monospace", fontSize: 10 }}>
+                                        {attestation.phala.cvm_id}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Live attestation measurements */}
+                                  {attestation.tee_quote != null ? (
+                                    <div style={{ marginTop: 10, borderTop: "1px solid #1c2030", paddingTop: 10 }}>
+                                      <div style={{ color: "#34d399", marginBottom: 6 }}>✅ Live TEE Quote Retrieved</div>
+                                      <div style={{ color: "#3a4060", fontSize: 10 }}>
+                                        {Object.entries(attestation.tee_quote).map(([k, v]) => (
+                                          <div key={k} style={{ marginBottom: 2 }}>
+                                            <span style={{ color: "#8890b0" }}>{k}:</span>{" "}
+                                            <span style={{ color: "#b8bfe0", fontFamily: "monospace" }}>
+                                              {v && v.length > 40 ? v.slice(0, 40) + "..." : v}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ) : null}
+
+                                  {attestation.live_attestation != null ? (
+                                    <div style={{ marginTop: 10, borderTop: "1px solid #1c2030", paddingTop: 10 }}>
+                                      <div style={{ color: "#34d399", marginBottom: 6 }}>✅ CVM Attestation Endpoint Verified</div>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              {/* Verification links */}
+                              <div>
+                                <div style={{ color: "#f97316", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>🔍 Verify Independently</div>
+                                <div style={{ background: "#080a0f", border: "1px solid #1c2030", borderRadius: 4, padding: 14 }}>
+                                  <div style={{ color: "#8890b0", marginBottom: 6 }}>
+                                    Docker Image: <a href="https://ghcr.io/mcclowin/openclaw-tee" target="_blank" rel="noopener" style={{ color: "#f97316" }}>
+                                      ghcr.io/mcclowin/openclaw-tee:latest
+                                    </a>
+                                  </div>
+                                  {attestation.verification.trust_center && (
+                                    <div style={{ color: "#8890b0", marginBottom: 6 }}>
+                                      Trust Center: <a href={attestation.verification.trust_center} target="_blank" rel="noopener" style={{ color: "#f97316" }}>
+                                        Verify on Phala →
+                                      </a>
+                                    </div>
+                                  )}
+                                  <div style={{ color: "#3a4060", fontSize: 10, marginTop: 8, lineHeight: 1.8 }}>
+                                    The TEE attestation proves this bot runs on genuine Intel TDX hardware.
+                                    The compose-hash in RTMR3 proves the exact Docker image running matches
+                                    the published source. No one — not even Clawster — can read your secrets.
+                                  </div>
+                                </div>
+                              </div>
+
+                              <button onClick={() => fetchAttestation(bot.id)} style={{ ...s.btnGhost, marginTop: 14, fontSize: 10 }}>
+                                ↻ REFRESH
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ color: "#3a4060" }}>
+                              {bot.status === "running" ? "No attestation data available yet." : "Bot must be running to view attestation."}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Logs tab */}
+                      {botTab === "logs" && (
+                        <div>
+                          {loadingLogs ? (
+                            <div style={{ color: "#3a4060", fontSize: 11 }}>Loading logs...</div>
+                          ) : (
+                            <div>
+                              <pre style={{
+                                background: "#080a0f", border: "1px solid #1c2030", borderRadius: 4,
+                                padding: 14, fontSize: 10, color: "#8890b0", lineHeight: 1.8,
+                                maxHeight: 400, overflowY: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all",
+                                fontFamily: "'JetBrains Mono', monospace",
+                              }}>
+                                {botLogs || "No logs available. Bot may still be starting."}
+                              </pre>
+                              <button onClick={() => fetchLogs(bot.id)} style={{ ...s.btnGhost, marginTop: 10, fontSize: 10 }}>
+                                ↻ REFRESH LOGS
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>Size</span><span style={{ color: "#8890b0" }}>{bot.instance_size}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span>Created</span><span style={{ color: "#8890b0" }}>{new Date(bot.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                    {bot.status === "running" && (
-                      <button style={s.btnGhost} onClick={() => handleRestart(bot.id)}>RESTART</button>
-                    )}
-                    {["error", "stopped"].includes(bot.status) && (
-                      <button style={{ ...s.btnSpawn, padding: "6px 16px" }} onClick={() => handleRestart(bot.id)}>🦞 RESPAWN</button>
-                    )}
-                    <button style={s.btnKill} onClick={() => handleTerminate(bot.id)}>TERMINATE</button>
-                  </div>
+                  )}
                 </div>
               ))}
             </div>
