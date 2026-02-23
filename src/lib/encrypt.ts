@@ -34,12 +34,9 @@ export async function encryptEnvVars(
   envVars: { key: string; value: string }[],
   teePubkeyHex: string
 ): Promise<string> {
-  // Phala SDK format: {env: {KEY: "value", ...}} — NOT array of {key, value}
-  const envObject: Record<string, string> = {};
-  for (const { key, value } of envVars) {
-    envObject[key] = value;
-  }
-  const plaintext = JSON.stringify({ env: envObject });
+  // dstack expects: {env: [{key: "KEY", value: "value"}, ...]}
+  const envArray = envVars.map(({ key, value }) => ({ key, value }));
+  const plaintext = JSON.stringify({ env: envArray });
 
   // Generate ephemeral x25519 keypair
   const ephemeralPriv = x25519.utils.randomSecretKey();
