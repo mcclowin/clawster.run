@@ -22,8 +22,8 @@ function headers(): HeadersInit {
 // ── Instance sizing ──
 
 export const SIZES = {
-  small:  { vcpu: 1, memory: 2048, disk: 20, instanceType: "tdx.small",  costPerHour: 0.058, retailPerHour: 0.12 },
-  medium: { vcpu: 2, memory: 4096, disk: 40, instanceType: "tdx.medium", costPerHour: 0.116, retailPerHour: 0.24 },
+  small:  { vcpu: 1, memory: 2048, disk: 20, instanceType: "tdx.small",  costPerHour: 0.058, retailPerHour: 0.082 },
+  medium: { vcpu: 2, memory: 4096, disk: 40, instanceType: "tdx.medium", costPerHour: 0.116, retailPerHour: 0.138 },
 } as const;
 
 export type SizeKey = keyof typeof SIZES;

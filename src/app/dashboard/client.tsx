@@ -239,8 +239,8 @@ export function DashboardClient({ user, initialBots }: Props) {
               <div style={s.field}>
                 <label style={s.label}>Enclave Size</label>
                 <select style={s.select} value={size} onChange={e => setSize(e.target.value)}>
-                  <option value="small">Small — 1 vCPU · 2 GB · $0.12/hr (~$86/mo)</option>
-                  <option value="medium">Medium — 2 vCPU · 4 GB · $0.24/hr (~$173/mo)</option>
+                  <option value="small">Small — 1 vCPU · 2 GB · $59/mo</option>
+                  <option value="medium">Medium — 2 vCPU · 4 GB · $99/mo</option>
                 </select>
               </div>
 
