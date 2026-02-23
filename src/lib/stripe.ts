@@ -133,7 +133,7 @@ export async function createBotCheckout(
     metadata: { clawster_bot_id: botId },
     success_url: successUrl,
     cancel_url: cancelUrl,
-    consent_collection: { terms_of_service: "required" },
+    // consent_collection: { terms_of_service: "required" }, // Enable after setting ToS URL in Stripe Dashboard
   });
 
   return session.url!;
