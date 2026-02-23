@@ -228,12 +228,15 @@ export async function restart(cvmId: string): Promise<void> {
 
 /** Delete/terminate a CVM */
 export async function terminate(cvmId: string): Promise<void> {
+  console.log(`[phala.terminate] DELETE ${PHALA_API}/cvms/${cvmId}`);
   const res = await fetch(`${PHALA_API}/cvms/${cvmId}`, {
     method: "DELETE",
     headers: headers(),
   });
-  // 204 = success, no content
+  const body = res.status !== 204 ? await res.text().catch(() => "") : "";
+  console.log(`[phala.terminate] Response: ${res.status} ${res.statusText}`, body ? `body: ${body}` : "");
+  // 200 or 204 = success
   if (!res.ok && res.status !== 204) {
-    throw new Error(`Phala delete failed (${res.status})`);
+    throw new Error(`Phala delete failed (${res.status}): ${body}`);
   }
 }
