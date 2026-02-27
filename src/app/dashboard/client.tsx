@@ -134,9 +134,11 @@ export function DashboardClient({ user, initialBots }: Props) {
     setLoadingLogs(true);
     try {
       const res = await fetch(`/api/bots/${botId}/logs?tail=200`);
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
         setBotLogs(data.logs || "No logs available");
+      } else {
+        setBotLogs(data.error || "Failed to fetch logs");
       }
     } catch { setBotLogs("Failed to fetch logs"); }
     setLoadingLogs(false);
