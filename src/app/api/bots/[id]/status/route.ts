@@ -18,8 +18,27 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       const phalaStatus = cvm.status?.toLowerCase() || "unknown";
 
       // Map Phala status → Clawster status
+      // Phala says "running" as soon as container starts, but OpenClaw takes 10-15 min to boot
       let newStatus = bot.status as string;
-      if (phalaStatus === "running") newStatus = "running";
+      if (phalaStatus === "running") {
+        // Check if OpenClaw is actually responding by hitting the CVM endpoint
+        if (bot.status === "provisioning" || bot.status === "starting" || bot.status === "booting") {
+          // Try to reach the gateway to confirm it's really up
+          const endpoint = cvm.endpoints?.[0]?.app || cvm.endpoints?.[0]?.instance;
+          if (endpoint) {
+            try {
+              const healthRes = await fetch(`${endpoint.replace(/\/$/, "")}/health`, { signal: AbortSignal.timeout(3000) });
+              newStatus = healthRes.ok ? "running" : "booting";
+            } catch {
+              newStatus = "booting";
+            }
+          } else {
+            newStatus = "booting";
+          }
+        } else {
+          newStatus = "running";
+        }
+      }
       else if (phalaStatus === "starting" || phalaStatus === "creating") newStatus = "provisioning";
       else if (phalaStatus === "stopped" || phalaStatus === "exited") newStatus = "stopped";
       else if (phalaStatus === "error" || phalaStatus === "failed") newStatus = "error";

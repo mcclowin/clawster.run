@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { getAuthUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default function Home() {
+export default async function Home() {
+  const user = await getAuthUser();
+  if (user) redirect("/dashboard");
   return (
     <div className="landing">
       {/* Nav */}
@@ -11,7 +15,7 @@ export default function Home() {
         <div className="landing-nav-links">
           <a href="https://github.com/openclaw/openclaw" target="_blank" rel="noopener">GitHub</a>
           <a href="https://docs.openclaw.ai" target="_blank" rel="noopener">Docs</a>
-          <Link href="/login" className="landing-btn-sm">Log In</Link>
+          <Link href="/dashboard" className="landing-btn-sm">Log In</Link>
         </div>
       </nav>
 

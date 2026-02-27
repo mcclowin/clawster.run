@@ -200,6 +200,7 @@ export function DashboardClient({ user, initialBots }: Props) {
         running: { bg: "rgba(52,211,153,0.1)", color: "#34d399", border: "rgba(52,211,153,0.2)" },
         provisioning: { bg: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "rgba(251,191,36,0.2)" },
         starting: { bg: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "rgba(251,191,36,0.2)" },
+        booting: { bg: "rgba(251,191,36,0.1)", color: "#fbbf24", border: "rgba(251,191,36,0.2)" },
         pending_payment: { bg: "rgba(168,85,247,0.1)", color: "#a855f7", border: "rgba(168,85,247,0.2)" },
         terminating: { bg: "rgba(248,113,113,0.08)", color: "#f87171", border: "rgba(248,113,113,0.15)" },
         error: { bg: "rgba(248,113,113,0.08)", color: "#f87171", border: "rgba(248,113,113,0.15)" },
@@ -212,8 +213,8 @@ export function DashboardClient({ user, initialBots }: Props) {
   };
 
   const statusLabel: Record<string, string> = {
-    running: "● RUNNING", provisioning: "● SPAWNING", starting: "● STARTING",
-    pending_payment: "● AWAITING PAYMENT", terminating: "● TERMINATING",
+    running: "● RUNNING", provisioning: "● SETTING UP (~10 min)", starting: "● STARTING",
+    booting: "● BOOTING", pending_payment: "● AWAITING PAYMENT", terminating: "● TERMINATING",
     error: "● ERROR", stopped: "● STOPPED",
   };
 
@@ -347,59 +348,33 @@ export function DashboardClient({ user, initialBots }: Props) {
 
               {bots.map(bot => (
                 <div key={bot.id} style={s.card}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, cursor: "pointer" }} onClick={() => toggleBotExpand(bot.id)}>
-                    <span style={{ fontSize: 13, color: "#e0e4f0", fontWeight: 600 }}>🦞 {bot.name} <span style={{ fontSize: 10, color: "#3a4060" }}>{expandedBot === bot.id ? "▾" : "▸"}</span></span>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <span style={{ fontSize: 13, color: "#e0e4f0", fontWeight: 600 }}>🦞 {bot.name}</span>
                     <span style={s.badge(bot.status)}>{statusLabel[bot.status] || "● UNKNOWN"}</span>
                   </div>
 
-                  {/* Collapsed view */}
-                  {expandedBot !== bot.id && (
-                    <>
-                      <div style={{ fontSize: 11, lineHeight: 2.2, color: "#3a4060" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span>Model</span><span style={{ color: "#8890b0" }}>{bot.model}</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span>Size</span><span style={{ color: "#8890b0" }}>{bot.instance_size}</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <span>Created</span><span style={{ color: "#8890b0" }}>{new Date(bot.created_at).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                        {bot.status === "running" && (
-                          <button style={s.btnGhost} onClick={() => handleRestart(bot.id)}>RESTART</button>
-                        )}
-                        {["error", "stopped"].includes(bot.status) && (
-                          <button style={{ ...s.btnSpawn, padding: "6px 16px" }} onClick={() => handleRestart(bot.id)}>🦞 RESPAWN</button>
-                        )}
-                        <button style={s.btnKill} onClick={() => handleTerminate(bot.id)}>TERMINATE</button>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Expanded view */}
-                  {expandedBot === bot.id && (
-                    <div>
-                      {/* Sub-tabs */}
+                  {/* Always show tabs */}
+                  <div>
+                      {/* Sub-tabs — always visible */}
                       <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "1px solid #1c2030" }}>
                         {(["info", "security", "logs"] as const).map(t => (
                           <button key={t} onClick={() => {
+                            setExpandedBot(bot.id);
                             setBotTab(t);
-                            if (t === "security" && !attestation) fetchAttestation(bot.id);
-                            if (t === "logs" && !botLogs) fetchLogs(bot.id);
+                            if (t === "security") fetchAttestation(bot.id);
+                            if (t === "logs") fetchLogs(bot.id);
                           }} style={{
                             padding: "8px 16px", fontSize: 10, letterSpacing: 2, textTransform: "uppercase",
                             background: "transparent", border: "none", cursor: "pointer",
-                            color: botTab === t ? "#f97316" : "#3a4060",
-                            borderBottom: `2px solid ${botTab === t ? "#f97316" : "transparent"}`,
+                            color: (expandedBot === bot.id && botTab === t) ? "#f97316" : "#3a4060",
+                            borderBottom: `2px solid ${(expandedBot === bot.id && botTab === t) ? "#f97316" : "transparent"}`,
                             fontFamily: "'JetBrains Mono', monospace",
                           }}>{t}</button>
                         ))}
                       </div>
 
-                      {/* Info tab */}
-                      {botTab === "info" && (
+                      {/* Info tab — always visible */}
+                      {(expandedBot !== bot.id || botTab === "info") && (
                         <div>
                           <div style={{ fontSize: 11, lineHeight: 2.4, color: "#3a4060" }}>
                             <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -430,7 +405,7 @@ export function DashboardClient({ user, initialBots }: Props) {
                       )}
 
                       {/* Security tab */}
-                      {botTab === "security" && (
+                      {expandedBot === bot.id && botTab === "security" && (
                         <div style={{ fontSize: 11, lineHeight: 2 }}>
                           {loadingAttestation ? (
                             <div style={{ color: "#3a4060" }}>Loading attestation data...</div>
@@ -497,6 +472,9 @@ export function DashboardClient({ user, initialBots }: Props) {
                                   {attestation.live_attestation != null ? (
                                     <div style={{ marginTop: 10, borderTop: "1px solid #1c2030", paddingTop: 10 }}>
                                       <div style={{ color: "#34d399", marginBottom: 6 }}>✅ CVM Attestation Endpoint Verified</div>
+                                      <pre style={{ fontSize: 9, color: "#3a4060", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 200, overflowY: "auto" }}>
+                                        {typeof attestation.live_attestation === "object" ? JSON.stringify(attestation.live_attestation, null, 2) : String(attestation.live_attestation)}
+                                      </pre>
                                     </div>
                                   ) : null}
                                 </div>
@@ -539,7 +517,7 @@ export function DashboardClient({ user, initialBots }: Props) {
                       )}
 
                       {/* Logs tab */}
-                      {botTab === "logs" && (
+                      {expandedBot === bot.id && botTab === "logs" && (
                         <div>
                           {loadingLogs ? (
                             <div style={{ color: "#3a4060", fontSize: 11 }}>Loading logs...</div>
@@ -561,7 +539,6 @@ export function DashboardClient({ user, initialBots }: Props) {
                         </div>
                       )}
                     </div>
-                  )}
                 </div>
               ))}
             </div>
