@@ -90,7 +90,7 @@ function migrate(db: SqlJsDatabase) {
 
 /** Add columns that may not exist in older DBs */
 function migrateAddColumns(db: SqlJsDatabase) {
-  const cols = ["stripe_subscription_id", "pending_telegram_token", "pending_api_key", "pending_owner_id", "pending_soul"];
+  const cols = ["stripe_subscription_id", "pending_telegram_token", "pending_api_key", "pending_owner_id", "pending_soul", "pending_openclaw_config", "pending_custom_env", "pending_workspace_files"];
   for (const col of cols) {
     try {
       db.run(`ALTER TABLE bots ADD COLUMN ${col} TEXT`);

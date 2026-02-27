@@ -42,6 +42,13 @@ export function DashboardClient({ user, initialBots }: Props) {
   const [apiKey, setApiKey] = useState("");
   const [ownerId, setOwnerId] = useState("");
   const [soul, setSoul] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [openclawConfig, setOpenclawConfig] = useState("");
+  const [customEnvText, setCustomEnvText] = useState("");
+  const [workspaceAgents, setWorkspaceAgents] = useState("");
+  const [workspaceTools, setWorkspaceTools] = useState("");
+  const [workspaceUser, setWorkspaceUser] = useState("");
+  const [workspaceHeartbeat, setWorkspaceHeartbeat] = useState("");
 
   // Poll Phala status every 10s for non-terminal bots
   // Use a ref to avoid stale closure / infinite re-render loop
@@ -84,7 +91,19 @@ export function DashboardClient({ user, initialBots }: Props) {
       const res = await fetch("/api/bots/spawn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, model, size, telegram_token: telegramToken, api_key: apiKey, owner_id: ownerId, soul: soul || undefined }),
+        body: JSON.stringify({
+          name, model, size,
+          telegram_token: telegramToken, api_key: apiKey, owner_id: ownerId,
+          soul: soul || undefined,
+          openclaw_config: openclawConfig || undefined,
+          custom_env: customEnvText ? customEnvText.split("\n").filter(l => l.includes("=")).map(l => { const [k, ...v] = l.split("="); return { key: k.trim(), value: v.join("=").trim() }; }) : undefined,
+          workspace_files: (workspaceAgents || workspaceTools || workspaceUser || workspaceHeartbeat) ? {
+            "AGENTS.md": workspaceAgents || undefined,
+            "TOOLS.md": workspaceTools || undefined,
+            "USER.md": workspaceUser || undefined,
+            "HEARTBEAT.md": workspaceHeartbeat || undefined,
+          } : undefined,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -318,6 +337,65 @@ export function DashboardClient({ user, initialBots }: Props) {
                 <label style={s.label}>Bot Personality <span style={{color:"#3a4060"}}>(optional)</span></label>
                 <textarea style={{...s.input, minHeight:60, resize:"vertical" as const}} placeholder="e.g. You are a helpful assistant. Be concise." value={soul} onChange={e => setSoul(e.target.value)} />
               </div>
+
+              {/* Advanced Config Section */}
+              <div style={{ marginTop: 8 }}>
+                <button
+                  style={{ background: "none", border: "none", color: "#f97316", cursor: "pointer", fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, padding: 0 }}
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                >
+                  {showAdvanced ? "▾ HIDE ADVANCED" : "▸ ADVANCED CONFIG"}
+                </button>
+              </div>
+
+              {showAdvanced && (
+                <div style={{ marginTop: 16, borderTop: "1px solid #1c2030", paddingTop: 16 }}>
+                  <div style={s.field}>
+                    <label style={s.label}>openclaw.json <span style={{color:"#3a4060"}}>(optional)</span></label>
+                    <textarea
+                      style={{...s.input, minHeight: 120, resize: "vertical" as const, fontFamily: "monospace", fontSize: 11}}
+                      placeholder='Paste your full openclaw.json config here. Gateway, auth, and workspace settings will be auto-injected.'
+                      value={openclawConfig}
+                      onChange={e => setOpenclawConfig(e.target.value)}
+                    />
+                    <div style={s.hint}>Overrides default config. Telegram token + owner ID are still injected from above.</div>
+                  </div>
+
+                  <div style={s.field}>
+                    <label style={s.label}>Custom Environment Variables <span style={{color:"#3a4060"}}>(optional)</span></label>
+                    <textarea
+                      style={{...s.input, minHeight: 80, resize: "vertical" as const, fontFamily: "monospace", fontSize: 11}}
+                      placeholder={"DISCORD_TOKEN=abc123\nWEBHOOK_URL=https://...\nMY_API_KEY=sk-..."}
+                      value={customEnvText}
+                      onChange={e => setCustomEnvText(e.target.value)}
+                    />
+                    <div style={s.hint}>One per line: KEY=VALUE. Injected into the TEE as environment variables.</div>
+                  </div>
+
+                  <div style={s.field}>
+                    <label style={s.label}>Workspace Files <span style={{color:"#3a4060"}}>(optional)</span></label>
+                    <div style={{ display: "grid", gap: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#5a6080", marginBottom: 4 }}>AGENTS.md</div>
+                        <textarea style={{...s.input, minHeight: 50, resize: "vertical" as const, fontSize: 11}} placeholder="Agent instructions..." value={workspaceAgents} onChange={e => setWorkspaceAgents(e.target.value)} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#5a6080", marginBottom: 4 }}>USER.md</div>
+                        <textarea style={{...s.input, minHeight: 50, resize: "vertical" as const, fontSize: 11}} placeholder="About the user..." value={workspaceUser} onChange={e => setWorkspaceUser(e.target.value)} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#5a6080", marginBottom: 4 }}>TOOLS.md</div>
+                        <textarea style={{...s.input, minHeight: 50, resize: "vertical" as const, fontSize: 11}} placeholder="Tool notes..." value={workspaceTools} onChange={e => setWorkspaceTools(e.target.value)} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, color: "#5a6080", marginBottom: 4 }}>HEARTBEAT.md</div>
+                        <textarea style={{...s.input, minHeight: 50, resize: "vertical" as const, fontSize: 11}} placeholder="Heartbeat checklist..." value={workspaceHeartbeat} onChange={e => setWorkspaceHeartbeat(e.target.value)} />
+                      </div>
+                    </div>
+                    <div style={s.hint}>Seeded into the bot&apos;s workspace on first boot.</div>
+                  </div>
+                </div>
+              )}
 
               <div style={s.sep} />
 

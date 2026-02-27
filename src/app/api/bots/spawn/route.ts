@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const user = await getAuthUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const { name, model, size, telegram_token, api_key, owner_id, soul } = await req.json();
+  const { name, model, size, telegram_token, api_key, owner_id, soul, openclaw_config, custom_env, workspace_files } = await req.json();
 
   // ── Validate ──
   if (!name || !/^[a-z0-9][a-z0-9-]{0,22}[a-z0-9]$/.test(name)) {
@@ -41,12 +41,27 @@ export async function POST(req: NextRequest) {
   const botModel = model || "anthropic/claude-sonnet-4-20250514";
 
   // ── Save bot + secrets as pending ──
+  // Validate custom config if provided
+  if (openclaw_config) {
+    try { JSON.parse(openclaw_config); } catch {
+      return NextResponse.json({ error: "openclaw_config must be valid JSON" }, { status: 400 });
+    }
+  }
+
+  // Validate custom_env if provided (expects array of {key, value})
+  if (custom_env && !Array.isArray(custom_env)) {
+    return NextResponse.json({ error: "custom_env must be an array of {key, value}" }, { status: 400 });
+  }
+
   await dbRun(
-    `INSERT INTO bots (id, user_id, name, model, instance_size, status, pending_telegram_token, pending_api_key, pending_owner_id, pending_soul)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO bots (id, user_id, name, model, instance_size, status, pending_telegram_token, pending_api_key, pending_owner_id, pending_soul, pending_openclaw_config, pending_custom_env, pending_workspace_files)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     botId, user.id, name, botModel, instanceSize,
     BYPASS_BILLING ? "provisioning" : "pending_payment",
-    telegram_token, api_key, String(owner_id), soul || null
+    telegram_token, api_key, String(owner_id), soul || null,
+    openclaw_config || null,
+    custom_env ? JSON.stringify(custom_env) : null,
+    workspace_files ? JSON.stringify(workspace_files) : null
   );
 
   // ── BYPASS: skip billing, deploy directly ──
