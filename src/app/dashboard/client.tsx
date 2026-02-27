@@ -20,7 +20,7 @@ interface AttestationData {
   encryption: { algorithm: string; tee_pubkey: string | null; description: string };
   phala: { app_id: string | null; cvm_id: string | null; cvm_endpoint: string | null };
   verification: { trust_center: string | null; docker_image: string; description: string };
-  tee_quote: Record<string, string> | null;
+  tee_quote: Record<string, unknown> | null;
   live_attestation: unknown;
 }
 
@@ -457,14 +457,17 @@ export function DashboardClient({ user, initialBots }: Props) {
                                     <div style={{ marginTop: 10, borderTop: "1px solid #1c2030", paddingTop: 10 }}>
                                       <div style={{ color: "#34d399", marginBottom: 6 }}>✅ Live TEE Quote Retrieved</div>
                                       <div style={{ color: "#3a4060", fontSize: 10 }}>
-                                        {Object.entries(attestation.tee_quote).map(([k, v]) => (
-                                          <div key={k} style={{ marginBottom: 2 }}>
-                                            <span style={{ color: "#8890b0" }}>{k}:</span>{" "}
-                                            <span style={{ color: "#b8bfe0", fontFamily: "monospace" }}>
-                                              {v && v.length > 40 ? v.slice(0, 40) + "..." : v}
-                                            </span>
-                                          </div>
-                                        ))}
+                                        {Object.entries(attestation.tee_quote).map(([k, v]) => {
+                                          const display = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "");
+                                          return (
+                                            <div key={k} style={{ marginBottom: 2 }}>
+                                              <span style={{ color: "#8890b0" }}>{k}:</span>{" "}
+                                              <span style={{ color: "#b8bfe0", fontFamily: "monospace" }}>
+                                                {display.length > 60 ? display.slice(0, 60) + "..." : display}
+                                              </span>
+                                            </div>
+                                          );
+                                        })}
                                       </div>
                                     </div>
                                   ) : null}
