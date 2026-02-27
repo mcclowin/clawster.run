@@ -6,7 +6,7 @@ export default function Home() {
       {/* Nav */}
       <nav className="landing-nav">
         <div className="landing-nav-logo">
-          <span className="lobster">🦞</span> CLAWSTER
+          <img src="/logo.jpg" alt="Clawster" style={{width: 32, height: 32, borderRadius: 6, marginRight: 8, verticalAlign: "middle"}} /> CLAWSTER
         </div>
         <div className="landing-nav-links">
           <a href="https://github.com/openclaw/openclaw" target="_blank" rel="noopener">GitHub</a>
