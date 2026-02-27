@@ -177,7 +177,7 @@ export function DashboardClient({ user, initialBots }: Props) {
 
   const s = {
     frame: { maxWidth: 900, margin: "20px auto", border: "1px solid #1c2030", borderRadius: 6, overflow: "hidden", boxShadow: "0 0 80px rgba(249,115,22,0.03)" } as const,
-    topBar: { background: "linear-gradient(135deg, #dc5828, #ef4444)", color: "#fff", padding: "10px 20px", fontWeight: 700, fontSize: 13, letterSpacing: 2, display: "flex", justifyContent: "space-between", alignItems: "center" } as const,
+    topBar: { background: "linear-gradient(135deg, #1a1208, #2a1a0a)", color: "#f97316", padding: "14px 24px", fontWeight: 700, fontSize: 15, letterSpacing: 2, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "2px solid #f97316" } as const,
     navTabs: { display: "flex", background: "#111520", borderBottom: "1px solid #1c2030" } as const,
     navTab: (active: boolean) => ({ padding: "11px 24px", fontSize: 11, color: active ? "#f97316" : "#3a4060", cursor: "pointer", borderBottom: `2px solid ${active ? "#f97316" : "transparent"}`, letterSpacing: 2, textTransform: "uppercase" as const, background: "transparent", border: "none", fontFamily: "'JetBrains Mono', monospace" }),
     main: { display: "flex", minHeight: 560 } as const,
@@ -223,7 +223,7 @@ export function DashboardClient({ user, initialBots }: Props) {
       {/* Top Chrome */}
       <div style={s.topBar}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <img src="/logo.jpg" alt="Clawster" style={{width: 24, height: 24, borderRadius: 4}} />
+          <img src="/logo.jpg" alt="Clawster" style={{width: 32, height: 32, borderRadius: 6}} />
           <span>CLAWSTER</span>
         </div>
         <div style={{ fontWeight: 400, fontSize: 11, opacity: 0.8 }}>
