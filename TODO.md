@@ -43,6 +43,10 @@
 - **Issue:** If checkout succeeds but deploy fails, subscription is active with no bot
 - **Fix:** Webhook should handle deploy failure — cancel subscription or retry
 
+### I8: Terminating a bot must cancel subscription
+- **Issue:** User terminates bot but Stripe subscription stays active — keeps charging
+- **Fix:** DELETE /api/bots/:id should cancel the Stripe subscription before terminating the CVM
+
 ### I5: Payment failed notification
 - **Issue:** `invoice.payment_failed` just logs, doesn't notify user
 - **Fix:** Send Telegram message to bot owner when payment fails
