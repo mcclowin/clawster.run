@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     },
     verification: {
       trust_center: bot.phala_app_id
-        ? `https://trust.phala.com/verify/${bot.phala_app_id}`
+        ? `https://trust.phala.com/app/${bot.phala_app_id}`
         : null,
       docker_image: "ghcr.io/mcclowin/openclaw-tee:latest",
       description: "Verify independently that this bot runs unmodified code in a genuine TEE.",
