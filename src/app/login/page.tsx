@@ -64,7 +64,7 @@ export default function LoginPage() {
 
   return (
     <div style={s.page}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>🦞</div>
+      <div style={{ marginBottom: 16 }}><img src="/logo.jpg" alt="Clawster" style={{width: 48, height: 48, borderRadius: 10}} /></div>
       <h1 style={{ fontSize: 18, color: "#e0e4f0", fontWeight: 700, marginBottom: 8 }}>Clawster</h1>
       <p style={{ fontSize: 12, color: "#5a6080", marginBottom: 40 }}>Deploy your bot into a secure enclave</p>
 

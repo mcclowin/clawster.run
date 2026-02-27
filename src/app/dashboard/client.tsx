@@ -223,7 +223,7 @@ export function DashboardClient({ user, initialBots }: Props) {
       {/* Top Chrome */}
       <div style={s.topBar}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 18 }}>🦞</span>
+          <img src="/logo.jpg" alt="Clawster" style={{width: 24, height: 24, borderRadius: 4}} />
           <span>CLAWSTER</span>
         </div>
         <div style={{ fontWeight: 400, fontSize: 11, opacity: 0.8 }}>
