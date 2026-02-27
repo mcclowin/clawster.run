@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { dbGet, dbRun } from "@/lib/db";
 import * as phala from "@/lib/phala";
+import Stripe from "stripe";
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getAuthUser();
@@ -52,6 +53,21 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
       { error: "Failed to terminate on Phala — CVM may still be running. Check Phala dashboard." },
       { status: 502 }
     );
+  }
+
+  // Cancel Stripe subscription if exists
+  if (bot.stripe_subscription_id) {
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+        apiVersion: "2024-12-18.acacia" as Stripe.LatestApiVersion,
+      });
+      await stripe.subscriptions.cancel(bot.stripe_subscription_id as string);
+      console.log("[terminate] Stripe subscription cancelled:", bot.stripe_subscription_id);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[terminate] Stripe cancel failed:", msg);
+      // Don't block termination if Stripe fails — sub may already be cancelled
+    }
   }
 
   // Only mark terminated AFTER Phala confirms deletion
