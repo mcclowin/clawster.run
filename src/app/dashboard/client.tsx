@@ -711,7 +711,7 @@ export function DashboardClient({ user, initialBots }: Props) {
 
       {/* Bottom */}
       <div style={s.bottomBar}>
-        <div>clawster.run · v0.1 · <a href="/terms" style={{ color: "#3a4060" }}>terms</a> · <a href="/privacy" style={{ color: "#3a4060" }}>privacy</a></div>
+        <div>clawster.run · v0.1 · <a href="/terms" style={{ color: "#3a4060" }}>terms</a> · <a href="/privacy" style={{ color: "#3a4060" }}>privacy</a> · <a href="mailto:support@clawster.run" style={{ color: "#3a4060" }}>support</a></div>
         <div>brain&amp;bot © 2026</div>
       </div>
     </div>

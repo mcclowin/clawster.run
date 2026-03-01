@@ -63,7 +63,7 @@ export default function PrivacyPage() {
       <p style={s.p}>We may update this policy. Material changes will be communicated via email.</p>
 
       <h2 style={s.h2}>10. Contact</h2>
-      <p style={s.p}>Data controller: Brain&amp;Bots. Email: <a href="mailto:hello@brainandbot.gg" style={s.link}>hello@brainandbot.gg</a></p>
+      <p style={s.p}>Data controller: Brain&amp;Bots. Email: <a href="mailto:support@clawster.run" style={s.link}>support@clawster.run</a></p>
 
       <p style={{ ...s.p, marginTop: 40 }}><a href="/dashboard" style={s.link}>← Back to dashboard</a></p>
     </div>

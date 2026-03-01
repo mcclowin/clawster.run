@@ -49,7 +49,7 @@ export default function TermsPage() {
       <p style={s.p}>These terms are governed by the laws of England and Wales. Disputes shall be subject to the exclusive jurisdiction of the courts of England and Wales.</p>
 
       <h2 style={s.h2}>12. Contact</h2>
-      <p style={s.p}>Questions? Email <a href="mailto:hello@brainandbot.gg" style={s.link}>hello@brainandbot.gg</a></p>
+      <p style={s.p}>Questions? Email <a href="mailto:support@clawster.run" style={s.link}>support@clawster.run</a></p>
 
       <p style={{ ...s.p, marginTop: 40 }}><a href="/dashboard" style={s.link}>← Back to dashboard</a></p>
     </div>
