@@ -48,7 +48,14 @@ export async function deployBot(botId: string): Promise<{ error?: string; phala_
     try {
       const customEnv = JSON.parse(bot.pending_custom_env as string) as { key: string; value: string }[];
       // Block overriding core vars
-      const blocked = new Set(["TELEGRAM_BOT_TOKEN", "ANTHROPIC_API_KEY", "TELEGRAM_OWNER_ID", "GATEWAY_TOKEN", "OPENCLAW_CONFIG"]);
+      // In advanced mode, allow API key via custom env (it's not set via easy-mode fields)
+      const blocked = new Set(["GATEWAY_TOKEN", "OPENCLAW_CONFIG"]);
+      if (!bot.pending_openclaw_config) {
+        // Easy mode: block core vars from custom env (they come from dedicated fields)
+        blocked.add("TELEGRAM_BOT_TOKEN");
+        blocked.add("ANTHROPIC_API_KEY");
+        blocked.add("TELEGRAM_OWNER_ID");
+      }
       for (const { key, value } of customEnv) {
         if (key && value && !blocked.has(key)) {
           envVars.push({ key, value });
