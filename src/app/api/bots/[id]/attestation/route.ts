@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
 import { dbGet } from "@/lib/db";
+import { createHash } from "crypto";
 
 const PHALA_API = "https://cloud-api.phala.network/api/v1";
 
@@ -50,6 +51,16 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
       if (res.ok) {
         const data = await res.json();
+
+        // Generate proof.t16z.com link from first cert's quote
+        if (data.app_certificates?.[0]?.quote) {
+          try {
+            const quoteHex = data.app_certificates[0].quote as string;
+            const quoteBytes = Buffer.from(quoteHex, "hex");
+            const quoteHash = createHash("sha256").update(quoteBytes).digest("hex");
+            attestation.proof_url = `https://proof.t16z.com/reports/${quoteHash}`;
+          } catch { /* skip */ }
+        }
 
         // Extract certificates
         if (data.app_certificates && Array.isArray(data.app_certificates)) {

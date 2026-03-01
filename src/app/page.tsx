@@ -115,7 +115,7 @@ export default async function Home() {
 
       {/* Footer */}
       <footer className="landing-footer">
-        <div>clawster.run · <a href="https://brainandbot.gg">brain&bot</a> © 2026 · <a href="mailto:support@clawster.run">support</a></div>
+        <div>clawster.run · <a href="https://brainandbot.gg">brain&bot</a> © 2026 · <a href="https://github.com/mcclowin/clawster.run">github</a> · <a href="mailto:support@clawster.run">support</a></div>
         <div>
           Powered by <a href="https://github.com/openclaw/openclaw">OpenClaw</a> + <a href="https://phala.network">Phala Network</a>
         </div>

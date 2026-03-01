@@ -35,6 +35,7 @@ interface AttestationData {
   certificates?: AttestationCert[];
   tcb_info?: { mrtd: string; rootfs_hash: string | null; rtmr0: string; rtmr1: string; rtmr2: string; rtmr3: string; event_log_count: number };
   compose_hash?: string;
+  proof_url?: string;
   is_online?: boolean;
 }
 
@@ -646,10 +647,22 @@ export function DashboardClient({ user, initialBots }: Props) {
                                 <div style={{ color: "#f97316", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>🔍 Verify Independently</div>
                                 <div style={{ background: "#080a0f", border: "1px solid #1c2030", borderRadius: 4, padding: 14 }}>
                                   <div style={{ color: "#8890b0", marginBottom: 6 }}>
-                                    Docker Image: <a href="https://ghcr.io/mcclowin/openclaw-tee" target="_blank" rel="noopener" style={{ color: "#f97316" }}>
+                                    Docker Image: <a href="https://github.com/mcclowin/openclaw-tee" target="_blank" rel="noopener" style={{ color: "#f97316" }}>
                                       ghcr.io/mcclowin/openclaw-tee:latest
                                     </a>
                                   </div>
+                                  <div style={{ color: "#8890b0", marginBottom: 6 }}>
+                                    Source Code: <a href="https://github.com/mcclowin/clawster.run" target="_blank" rel="noopener" style={{ color: "#f97316" }}>
+                                      github.com/mcclowin/clawster.run
+                                    </a>
+                                  </div>
+                                  {attestation.proof_url && (
+                                    <div style={{ color: "#8890b0", marginBottom: 6 }}>
+                                      TEE Proof: <a href={attestation.proof_url} target="_blank" rel="noopener" style={{ color: "#f97316" }}>
+                                        Verify on a16z TEE Explorer →
+                                      </a>
+                                    </div>
+                                  )}
                                   <div style={{ color: "#3a4060", fontSize: 10, marginTop: 8, lineHeight: 1.8 }}>
                                     The TEE attestation proves this bot runs on genuine Intel TDX hardware.
                                     The compose-hash in RTMR3 proves the exact Docker image running matches
@@ -750,7 +763,7 @@ export function DashboardClient({ user, initialBots }: Props) {
 
       {/* Bottom */}
       <div style={s.bottomBar}>
-        <div>clawster.run · v0.1 · <a href="/terms" style={{ color: "#3a4060" }}>terms</a> · <a href="/privacy" style={{ color: "#3a4060" }}>privacy</a> · <a href="mailto:support@clawster.run" style={{ color: "#3a4060" }}>support</a></div>
+        <div>clawster.run · v0.1 · <a href="/terms" style={{ color: "#3a4060" }}>terms</a> · <a href="/privacy" style={{ color: "#3a4060" }}>privacy</a> · <a href="https://github.com/mcclowin/clawster.run" target="_blank" rel="noopener" style={{ color: "#3a4060" }}>github</a> · <a href="mailto:support@clawster.run" style={{ color: "#3a4060" }}>support</a></div>
         <div>brain&amp;bot © 2026</div>
       </div>
     </div>
