@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   if (existing) {
     const existingStatus = (existing as any).status;
     // Allow reuse if terminated or stuck in pending_payment (stale checkout)
-    if (existingStatus === "terminated" || existingStatus === "pending_payment") {
+    if (["terminated", "pending_payment", "error", "provisioning", "starting"].includes(existingStatus)) {
       await dbRun("DELETE FROM bots WHERE id = ?", (existing as any).id);
     } else {
       return NextResponse.json({ error: "Bot name already in use" }, { status: 409 });
