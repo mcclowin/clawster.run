@@ -35,6 +35,7 @@ export function DashboardClient({ user, initialBots }: Props) {
   const [spawning, setSpawning] = useState(false);
 
   // Spawn form state
+  const [spawnMode, setSpawnMode] = useState<"easy" | "advanced">("easy");
   const [name, setName] = useState("");
   const [model, setModel] = useState("anthropic/claude-sonnet-4-20250514");
   const [size, setSize] = useState("small");
@@ -42,7 +43,6 @@ export function DashboardClient({ user, initialBots }: Props) {
   const [apiKey, setApiKey] = useState("");
   const [ownerId, setOwnerId] = useState("");
   const [soul, setSoul] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [openclawConfig, setOpenclawConfig] = useState("");
   const [customEnvText, setCustomEnvText] = useState("");
   const [workspaceAgents, setWorkspaceAgents] = useState("");
@@ -92,17 +92,24 @@ export function DashboardClient({ user, initialBots }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name, model, size,
-          telegram_token: telegramToken, api_key: apiKey, owner_id: ownerId,
-          soul: soul || undefined,
-          openclaw_config: openclawConfig || undefined,
-          custom_env: customEnvText ? customEnvText.split("\n").filter(l => l.includes("=")).map(l => { const [k, ...v] = l.split("="); return { key: k.trim(), value: v.join("=").trim() }; }) : undefined,
-          workspace_files: (workspaceAgents || workspaceTools || workspaceUser || workspaceHeartbeat) ? {
-            "AGENTS.md": workspaceAgents || undefined,
-            "TOOLS.md": workspaceTools || undefined,
-            "USER.md": workspaceUser || undefined,
-            "HEARTBEAT.md": workspaceHeartbeat || undefined,
-          } : undefined,
+          name, size,
+          mode: spawnMode,
+          // Easy mode fields
+          ...(spawnMode === "easy" ? {
+            model, telegram_token: telegramToken, api_key: apiKey, owner_id: ownerId,
+            soul: soul || undefined,
+          } : {}),
+          // Advanced mode fields
+          ...(spawnMode === "advanced" ? {
+            openclaw_config: openclawConfig || undefined,
+            custom_env: customEnvText ? customEnvText.split("\n").filter(l => l.includes("=")).map(l => { const [k, ...v] = l.split("="); return { key: k.trim(), value: v.join("=").trim() }; }) : undefined,
+            workspace_files: (workspaceAgents || workspaceTools || workspaceUser || workspaceHeartbeat) ? {
+              "AGENTS.md": workspaceAgents || undefined,
+              "TOOLS.md": workspaceTools || undefined,
+              "USER.md": workspaceUser || undefined,
+              "HEARTBEAT.md": workspaceHeartbeat || undefined,
+            } : undefined,
+          } : {}),
         }),
       });
       const data = await res.json();
@@ -287,22 +294,37 @@ export function DashboardClient({ user, initialBots }: Props) {
               <div style={s.title}>Spawn a Bot</div>
               <div style={s.sub}>Deploy an OpenClaw agent into a secure enclave</div>
 
+              {/* Mode toggle */}
+              <div style={{ display: "flex", marginBottom: 24, border: "1px solid #1c2030", borderRadius: 4, overflow: "hidden", width: "fit-content" }}>
+                <button
+                  onClick={() => setSpawnMode("easy")}
+                  style={{
+                    padding: "8px 20px", fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: 1, border: "none", cursor: "pointer",
+                    background: spawnMode === "easy" ? "#f97316" : "#0d1017",
+                    color: spawnMode === "easy" ? "#fff" : "#3a4060",
+                  }}
+                >
+                  EASY SETUP
+                </button>
+                <button
+                  onClick={() => setSpawnMode("advanced")}
+                  style={{
+                    padding: "8px 20px", fontSize: 11, fontFamily: "'JetBrains Mono', monospace",
+                    letterSpacing: 1, border: "none", cursor: "pointer", borderLeft: "1px solid #1c2030",
+                    background: spawnMode === "advanced" ? "#f97316" : "#0d1017",
+                    color: spawnMode === "advanced" ? "#fff" : "#3a4060",
+                  }}
+                >
+                  BRING YOUR CONFIG
+                </button>
+              </div>
+
+              {/* Shared fields: name + size */}
               <div style={s.field}>
                 <label style={s.label}>Bot Name</label>
                 <input style={s.input} placeholder="e.g. jarvis, friday, abuclaw" value={name} onChange={e => setName(e.target.value)} />
                 <div style={s.hint}>Lowercase, 2-24 chars, alphanumeric + hyphens</div>
-              </div>
-
-              <div style={s.sep} />
-
-              <div style={s.field}>
-                <label style={s.label}>AI Model</label>
-                <select style={s.select} value={model} onChange={e => setModel(e.target.value)}>
-                  <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (Anthropic)</option>
-                  <option value="anthropic/claude-opus-4-6">Claude Opus 4 (Anthropic)</option>
-                  <option value="openai/gpt-4o">GPT-4o (OpenAI)</option>
-                  <option value="google/gemini-2.0-flash">Gemini 2.0 Flash (Google)</option>
-                </select>
               </div>
 
               <div style={s.field}>
@@ -315,50 +337,60 @@ export function DashboardClient({ user, initialBots }: Props) {
 
               <div style={s.sep} />
 
-              <div style={s.field}>
-                <label style={s.label}>Telegram Bot Token</label>
-                <input style={s.input} placeholder="123456789:ABCdefGHI..." value={telegramToken} onChange={e => setTelegramToken(e.target.value)} />
-                <div style={s.hint}>Get from <a href="https://t.me/BotFather" target="_blank" rel="noopener" style={{color:"#f97316"}}>@BotFather</a> → /newbot</div>
-              </div>
-
-              <div style={s.field}>
-                <label style={s.label}>AI API Key</label>
-                <input style={{...s.input, fontFamily:"monospace"}} type="password" placeholder="sk-ant-..." value={apiKey} onChange={e => setApiKey(e.target.value)} />
-                <div style={s.hint}>Your Anthropic, OpenAI, or Google API key</div>
-              </div>
-
-              <div style={s.field}>
-                <label style={s.label}>Your Telegram ID</label>
-                <input style={s.input} placeholder="1234567890" value={ownerId} onChange={e => setOwnerId(e.target.value)} />
-                <div style={s.hint}>Get from <a href="https://t.me/userinfobot" target="_blank" rel="noopener" style={{color:"#f97316"}}>@userinfobot</a></div>
-              </div>
-
-              <div style={s.field}>
-                <label style={s.label}>Bot Personality <span style={{color:"#3a4060"}}>(optional)</span></label>
-                <textarea style={{...s.input, minHeight:60, resize:"vertical" as const}} placeholder="e.g. You are a helpful assistant. Be concise." value={soul} onChange={e => setSoul(e.target.value)} />
-              </div>
-
-              {/* Advanced Config Section */}
-              <div style={{ marginTop: 8 }}>
-                <button
-                  style={{ background: "none", border: "none", color: "#f97316", cursor: "pointer", fontSize: 11, fontFamily: "'JetBrains Mono', monospace", letterSpacing: 1, padding: 0 }}
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                >
-                  {showAdvanced ? "▾ HIDE ADVANCED" : "▸ ADVANCED CONFIG"}
-                </button>
-              </div>
-
-              {showAdvanced && (
-                <div style={{ marginTop: 16, borderTop: "1px solid #1c2030", paddingTop: 16 }}>
+              {/* ── EASY MODE ── */}
+              {spawnMode === "easy" && (
+                <div>
                   <div style={s.field}>
-                    <label style={s.label}>openclaw.json <span style={{color:"#3a4060"}}>(optional)</span></label>
+                    <label style={s.label}>AI Model</label>
+                    <select style={s.select} value={model} onChange={e => setModel(e.target.value)}>
+                      <option value="anthropic/claude-sonnet-4-20250514">Claude Sonnet 4 (Anthropic)</option>
+                      <option value="anthropic/claude-opus-4-6">Claude Opus 4 (Anthropic)</option>
+                      <option value="openai/gpt-4o">GPT-4o (OpenAI)</option>
+                      <option value="google/gemini-2.0-flash">Gemini 2.0 Flash (Google)</option>
+                    </select>
+                  </div>
+
+                  <div style={s.field}>
+                    <label style={s.label}>Telegram Bot Token</label>
+                    <input style={s.input} placeholder="123456789:ABCdefGHI..." value={telegramToken} onChange={e => setTelegramToken(e.target.value)} />
+                    <div style={s.hint}>Get from <a href="https://t.me/BotFather" target="_blank" rel="noopener" style={{color:"#f97316"}}>@BotFather</a> → /newbot</div>
+                  </div>
+
+                  <div style={s.field}>
+                    <label style={s.label}>AI API Key</label>
+                    <input style={{...s.input, fontFamily:"monospace"}} type="password" placeholder="sk-ant-..." value={apiKey} onChange={e => setApiKey(e.target.value)} />
+                    <div style={s.hint}>Your Anthropic, OpenAI, or Google API key</div>
+                  </div>
+
+                  <div style={s.field}>
+                    <label style={s.label}>Your Telegram ID</label>
+                    <input style={s.input} placeholder="1234567890" value={ownerId} onChange={e => setOwnerId(e.target.value)} />
+                    <div style={s.hint}>Get from <a href="https://t.me/userinfobot" target="_blank" rel="noopener" style={{color:"#f97316"}}>@userinfobot</a></div>
+                  </div>
+
+                  <div style={s.field}>
+                    <label style={s.label}>Bot Personality <span style={{color:"#3a4060"}}>(optional)</span></label>
+                    <textarea style={{...s.input, minHeight:60, resize:"vertical" as const}} placeholder="e.g. You are a helpful assistant. Be concise." value={soul} onChange={e => setSoul(e.target.value)} />
+                  </div>
+                </div>
+              )}
+
+              {/* ── ADVANCED MODE ── */}
+              {spawnMode === "advanced" && (
+                <div>
+                  <div style={{ fontSize: 11, color: "#8890b0", marginBottom: 20, lineHeight: 1.8 }}>
+                    Paste your own <span style={{color:"#f97316"}}>openclaw.json</span> with model, API keys, and channel config already set. For power users who know their way around OpenClaw.
+                  </div>
+
+                  <div style={s.field}>
+                    <label style={s.label}>openclaw.json</label>
                     <textarea
-                      style={{...s.input, minHeight: 120, resize: "vertical" as const, fontFamily: "monospace", fontSize: 11}}
-                      placeholder='Paste your full openclaw.json config here. Gateway, auth, and workspace settings will be auto-injected.'
+                      style={{...s.input, minHeight: 180, resize: "vertical" as const, fontFamily: "monospace", fontSize: 11}}
+                      placeholder={'{\n  "llm": {\n    "provider": "anthropic",\n    "model": "claude-sonnet-4-20250514",\n    "apiKey": "sk-ant-..."\n  },\n  "channels": {\n    "telegram": {\n      "enabled": true,\n      "token": "123:ABC...",\n      "owner_id": "1234567890"\n    }\n  }\n}'}
                       value={openclawConfig}
                       onChange={e => setOpenclawConfig(e.target.value)}
                     />
-                    <div style={s.hint}>Overrides default config. Telegram token + owner ID are still injected from above.</div>
+                    <div style={s.hint}>Full OpenClaw config. Gateway and workspace paths are auto-injected.</div>
                   </div>
 
                   <div style={s.field}>
