@@ -15,13 +15,27 @@ interface Bot {
   created_at: string; updated_at: string;
 }
 
+interface AttestationCert {
+  subject: Record<string, string | null>;
+  issuer: Record<string, string | null>;
+  serial_number: string;
+  not_before: string;
+  not_after: string;
+  fingerprint: string;
+  signature_algorithm: string;
+  is_ca: boolean;
+  has_quote: boolean;
+}
+
 interface AttestationData {
   tee_platform: string;
   encryption: { algorithm: string; tee_pubkey: string | null; description: string };
   phala: { app_id: string | null; cvm_id: string | null; cvm_endpoint: string | null };
-  verification: { trust_center: string | null; docker_image: string; description: string };
-  tee_quote: Record<string, unknown> | null;
-  live_attestation: unknown;
+  verification: { docker_image: string; description: string };
+  certificates?: AttestationCert[];
+  tcb_info?: { mrtd: string; rootfs_hash: string | null; rtmr0: string; rtmr1: string; rtmr2: string; rtmr3: string; event_log_count: number };
+  compose_hash?: string;
+  is_online?: boolean;
 }
 
 interface Props {
@@ -549,6 +563,9 @@ export function DashboardClient({ user, initialBots }: Props) {
                                   <div style={{ color: "#8890b0", marginBottom: 4 }}>
                                     Platform: <span style={{ color: "#b8bfe0" }}>{attestation.tee_platform}</span>
                                   </div>
+                                  {attestation.is_online && (
+                                    <div style={{ color: "#34d399", marginBottom: 4 }}>✅ CVM Online &amp; Attested</div>
+                                  )}
                                   {attestation.phala.app_id && (
                                     <div style={{ color: "#8890b0", marginBottom: 4 }}>
                                       App ID: <span style={{ color: "#b8bfe0", fontFamily: "monospace", fontSize: 10 }}>
@@ -563,37 +580,66 @@ export function DashboardClient({ user, initialBots }: Props) {
                                       </span>
                                     </div>
                                   )}
-
-                                  {/* Live attestation measurements */}
-                                  {attestation.tee_quote != null ? (
-                                    <div style={{ marginTop: 10, borderTop: "1px solid #1c2030", paddingTop: 10 }}>
-                                      <div style={{ color: "#34d399", marginBottom: 6 }}>✅ Live TEE Quote Retrieved</div>
-                                      <div style={{ color: "#3a4060", fontSize: 10 }}>
-                                        {Object.entries(attestation.tee_quote).map(([k, v]) => {
-                                          const display = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v ?? "");
-                                          return (
-                                            <div key={k} style={{ marginBottom: 2 }}>
-                                              <span style={{ color: "#8890b0" }}>{k}:</span>{" "}
-                                              <span style={{ color: "#b8bfe0", fontFamily: "monospace" }}>
-                                                {display.length > 60 ? display.slice(0, 60) + "..." : display}
-                                              </span>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  ) : null}
-
-                                  {attestation.live_attestation != null ? (
-                                    <div style={{ marginTop: 10, borderTop: "1px solid #1c2030", paddingTop: 10 }}>
-                                      <div style={{ color: "#34d399", marginBottom: 6 }}>✅ CVM Attestation Endpoint Verified</div>
-                                      <pre style={{ fontSize: 9, color: "#3a4060", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 200, overflowY: "auto" }}>
-                                        {typeof attestation.live_attestation === "object" ? JSON.stringify(attestation.live_attestation, null, 2) : String(attestation.live_attestation)}
-                                      </pre>
-                                    </div>
-                                  ) : null}
                                 </div>
                               </div>
+
+                              {/* TLS Certificates */}
+                              {attestation.certificates && attestation.certificates.length > 0 && (
+                                <div style={{ marginBottom: 20 }}>
+                                  <div style={{ color: "#f97316", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>📜 TLS Certificate Chain ({attestation.certificates.length} certs)</div>
+                                  {attestation.certificates.map((cert, i) => (
+                                    <div key={i} style={{ background: "#080a0f", border: "1px solid #1c2030", borderRadius: 4, padding: 14, marginBottom: 8 }}>
+                                      <div style={{ color: "#b8bfe0", fontWeight: 600, marginBottom: 6 }}>
+                                        {cert.is_ca ? "🔒 CA Certificate" : "📄 App Certificate"} — {cert.subject?.CN || cert.subject?.common_name || "Unknown"}
+                                      </div>
+                                      <div style={{ fontSize: 10, color: "#8890b0" }}>
+                                        <div>Issuer: {cert.issuer?.CN || cert.issuer?.common_name || "Unknown"} {cert.issuer?.O || cert.issuer?.organization ? `(${cert.issuer.O || cert.issuer.organization})` : ""}</div>
+                                        <div>Valid: {cert.not_before} → {cert.not_after}</div>
+                                        <div>Serial: <span style={{ fontFamily: "monospace", color: "#3a4060" }}>{cert.serial_number}</span></div>
+                                        <div>Fingerprint: <span style={{ fontFamily: "monospace", color: "#3a4060" }}>{cert.fingerprint?.slice(0, 32)}...</span></div>
+                                        {cert.has_quote && <div style={{ color: "#34d399", marginTop: 4 }}>✅ Contains TDX Quote</div>}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* TCB Measurements */}
+                              {attestation.tcb_info && (
+                                <div style={{ marginBottom: 20 }}>
+                                  <div style={{ color: "#f97316", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>📐 TCB Measurements</div>
+                                  <div style={{ background: "#080a0f", border: "1px solid #1c2030", borderRadius: 4, padding: 14, fontSize: 10 }}>
+                                    {(["mrtd", "rtmr0", "rtmr1", "rtmr2", "rtmr3"] as const).map(field => (
+                                      attestation.tcb_info?.[field] ? (
+                                        <div key={field} style={{ marginBottom: 4 }}>
+                                          <span style={{ color: "#8890b0", textTransform: "uppercase", width: 50, display: "inline-block" }}>{field}:</span>
+                                          <span style={{ fontFamily: "monospace", color: "#b8bfe0", fontSize: 9 }}>{attestation.tcb_info[field]?.slice(0, 48)}...</span>
+                                        </div>
+                                      ) : null
+                                    ))}
+                                    {attestation.tcb_info.rootfs_hash && (
+                                      <div style={{ marginBottom: 4 }}>
+                                        <span style={{ color: "#8890b0" }}>rootfs: </span>
+                                        <span style={{ fontFamily: "monospace", color: "#b8bfe0", fontSize: 9 }}>{attestation.tcb_info.rootfs_hash.slice(0, 48)}...</span>
+                                      </div>
+                                    )}
+                                    <div style={{ color: "#3a4060", marginTop: 6 }}>Event log entries: {attestation.tcb_info.event_log_count}</div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Compose Hash */}
+                              {attestation.compose_hash && (
+                                <div style={{ marginBottom: 20 }}>
+                                  <div style={{ color: "#f97316", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>📦 Compose Integrity</div>
+                                  <div style={{ background: "#080a0f", border: "1px solid #1c2030", borderRadius: 4, padding: 14, fontSize: 10 }}>
+                                    <div style={{ color: "#34d399", marginBottom: 4 }}>✅ Docker Compose hash verified in RTMR3</div>
+                                    <div style={{ color: "#8890b0", wordBreak: "break-all", fontFamily: "monospace", fontSize: 9 }}>
+                                      {typeof attestation.compose_hash === "string" ? attestation.compose_hash.slice(0, 64) : ""}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
 
                               {/* Verification links */}
                               <div>
@@ -604,13 +650,6 @@ export function DashboardClient({ user, initialBots }: Props) {
                                       ghcr.io/mcclowin/openclaw-tee:latest
                                     </a>
                                   </div>
-                                  {attestation.verification.trust_center && (
-                                    <div style={{ color: "#8890b0", marginBottom: 6 }}>
-                                      Trust Center: <a href={attestation.verification.trust_center} target="_blank" rel="noopener" style={{ color: "#f97316" }}>
-                                        Verify on Phala →
-                                      </a>
-                                    </div>
-                                  )}
                                   <div style={{ color: "#3a4060", fontSize: 10, marginTop: 8, lineHeight: 1.8 }}>
                                     The TEE attestation proves this bot runs on genuine Intel TDX hardware.
                                     The compose-hash in RTMR3 proves the exact Docker image running matches
