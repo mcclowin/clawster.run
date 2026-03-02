@@ -263,6 +263,11 @@ export function DashboardClient({ user, initialBots }: Props) {
 
   return (
     <div style={s.frame}>
+      {/* Beta Banner */}
+      <div style={{ background: "#1a1a2e", borderBottom: "1px solid #333", padding: "8px 16px", fontSize: 12, color: "#ccc", textAlign: "center" }}>
+        🚧 <strong style={{ color: "#fff" }}>Beta</strong> — Clawster is in early access. If something breaks, hit us at{" "}
+        <a href="mailto:support@clawster.run" style={{ color: "#00ff88" }}>support@clawster.run</a>
+      </div>
       {/* Top Chrome */}
       <div style={s.topBar}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
