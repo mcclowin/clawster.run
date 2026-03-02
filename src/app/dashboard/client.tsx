@@ -256,8 +256,8 @@ export function DashboardClient({ user, initialBots }: Props) {
   };
 
   const statusLabel: Record<string, string> = {
-    running: "● RUNNING", provisioning: "● SETTING UP (~10 min)", starting: "● STARTING",
-    booting: "● BOOTING", pending_payment: "● AWAITING PAYMENT", terminating: "● TERMINATING",
+    running: "● RUNNING", provisioning: "● SETTING UP (~10-15 min)", starting: "● STARTING",
+    booting: "● BOOTING — almost there", pending_payment: "● AWAITING PAYMENT", terminating: "● TERMINATING",
     error: "● ERROR", stopped: "● STOPPED",
   };
 
@@ -458,10 +458,11 @@ export function DashboardClient({ user, initialBots }: Props) {
                 <a href="/privacy" target="_blank" style={{ color: "#f97316" }}>Privacy Policy</a>.
               </div>
 
-              <div style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                 <button style={s.btnSpawn} onClick={handleSpawn} disabled={spawning}>
                   {spawning ? "⏳ SPAWNING..." : "🦞 SPAWN"}
                 </button>
+                <span style={{ fontSize: 11, color: "#666" }}>⏱ Deployment takes ~10-15 min. Grab a coffee ☕</span>
               </div>
             </div>
           )}
